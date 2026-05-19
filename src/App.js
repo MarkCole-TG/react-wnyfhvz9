@@ -1,0 +1,1005 @@
+/* ============================================================
+   OFFICE DAYS PLANNER — CLEAN REBUILD (PRINT‑ISOLATED VERSION)
+   PART 1 OF 3
+============================================================ */
+import React from "react";
+import { useState, useEffect, useMemo } from "react";
+
+/* -----------------------------------------
+   DAYS + OPTIONS
+------------------------------------------ */
+const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+const options = ["", "WFH", "Office", "Site", "Holiday", "Absent", "Training"];
+
+/* ============================================================
+   MAIN APP COMPONENT
+============================================================ */
+export default function App() {
+
+  /* -----------------------------------------
+     EMPTY INITIAL STORAGE (FRESH BUILD)
+  ------------------------------------------ */
+  const [staff, setStaff] = useState([]);       // no preload
+  const [schedule, setSchedule] = useState({}); // no preload
+  const [weekMeta, setWeekMeta] = useState({}); // no preload
+
+  /* -----------------------------------------
+     OPEN ON NEXT MONDAY
+  ------------------------------------------ */
+  const [anchorDate, setAnchorDate] = useState(() => {
+    const today = new Date();
+    const thisMonday = startOfISOWeek(today);
+    const nextMonday = addDays(thisMonday, 7);
+    return nextMonday;
+  });
+
+  const weekInfo = useMemo(() => getISOWeekInfo(anchorDate), [anchorDate]);
+  const weekKey = weekKeyFromDate(weekInfo.start);
+
+  /* -----------------------------------------
+     LOCALSTORAGE SAVE ONLY (NO LOAD)
+  ------------------------------------------ */
+  useEffect(() => {
+    localStorage.setItem("planner/staff", JSON.stringify(staff));
+  }, [staff]);
+
+  useEffect(() => {
+    localStorage.setItem("planner/schedule", JSON.stringify(schedule));
+  }, [schedule]);
+
+  useEffect(() => {
+    localStorage.setItem("planner/weekMeta", JSON.stringify(weekMeta));
+  }, [weekMeta]);
+
+  /* -----------------------------------------
+     AUTO‑COPY PREVIOUS WEEK (IF EXISTS)
+  ------------------------------------------ */
+  useEffect(() => {
+    if (schedule[weekKey]) return;
+
+    const prevMonday = addDays(weekInfo.start, -7);
+    const prevKey = weekKeyFromDate(prevMonday);
+
+    setSchedule(prev => {
+      const cloned = prev[prevKey] ? JSON.parse(JSON.stringify(prev[prevKey])) : {};
+      return { ...prev, [weekKey]: cloned };
+    });
+
+    setWeekMeta(prev =>
+      prev[weekKey]
+        ? prev
+        : { ...prev, [weekKey]: { derivedFrom: prevKey, dirty: false } }
+    );
+  }, [weekKey]);
+
+  /* -----------------------------------------
+     FORWARD SYNC
+  ------------------------------------------ */
+  useEffect(() => {
+    const currMon = getMondayFromWeekKey(weekKey);
+    const nextMon = addDays(currMon, 7);
+    const nextKey = weekKeyFromDate(nextMon);
+    const meta = weekMeta[nextKey];
+
+    if (
+      schedule[nextKey] &&
+      meta &&
+      meta.derivedFrom === weekKey &&
+      meta.dirty === false
+    ) {
+      const curr = schedule[weekKey] || {};
+      const next = schedule[nextKey] || {};
+      if (JSON.stringify(curr) !== JSON.stringify(next)) {
+        setSchedule(prev => ({
+          ...prev,
+          [nextKey]: JSON.parse(JSON.stringify(curr))
+        }));
+      }
+    }
+  }, [schedule, weekKey, weekMeta]);
+
+  /* -----------------------------------------
+     ROW FORMAT
+  ------------------------------------------ */
+  const emptyRow = {
+    MonAM: "", MonPM: "",
+    TueAM: "", TuePM: "",
+    WedAM: "", WedPM: "",
+    ThuAM: "", ThuPM: "",
+    FriAM: "", FriPM: "",
+    comment: ""
+  };
+
+  const getRow = (wk, id) =>
+    schedule[wk]?.[id] ? { ...emptyRow, ...schedule[wk][id] } : { ...emptyRow };
+
+  const setRow = (wk, id, next) => {
+    setSchedule(prev => ({
+      ...prev,
+      [wk]: { ...(prev[wk] || {}), [id]: next }
+    }));
+  };
+
+  /* -----------------------------------------
+     UPDATE CELL
+  ------------------------------------------ */
+  const updateField = (id, field, value) => {
+    setWeekMeta(prev => {
+      const meta = prev[weekKey];
+      if (!meta)
+        return { ...prev, [weekKey]: { derivedFrom: null, dirty: true } };
+      if (meta.dirty) return prev;
+      return { ...prev, [weekKey]: { ...meta, dirty: true } };
+    });
+
+    const row = getRow(weekKey, id);
+    setRow(weekKey, id, { ...row, [field]: value });
+  };
+
+  /* -----------------------------------------
+     SCREEN‑ONLY SEARCH
+  ------------------------------------------ */
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return staff;
+    return staff.filter(s =>
+      [s.name, s.number].join(" ").toLowerCase().includes(q)
+    );
+  }, [search, staff]);
+
+  /* -----------------------------------------
+     PRINT FIRE‑DRILL ONLY
+  ------------------------------------------ */
+  const printPDF = () => {
+    document.body.classList.add("print-mode");
+    setTimeout(() => {
+      window.print();
+      document.body.classList.remove("print-mode");
+    }, 40);
+  };
+
+  /* -----------------------------------------
+     WEEK NAVIGATION
+  ------------------------------------------ */
+  const goPrev = () => setAnchorDate(addDays(anchorDate, -7));
+  const goNext = () => setAnchorDate(addDays(anchorDate, 7));
+  const goToday = () => {
+    const today = new Date();
+    const thisMonday = startOfISOWeek(today);
+    setAnchorDate(addDays(thisMonday, 7));
+  };
+
+  /* -----------------------------------------
+     MODAL STATES
+  ------------------------------------------ */
+  const [addOpen, setAddOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+
+  /* ============================================================
+     PART 1 ENDS HERE — NEXT PART CONTAINS:
+     - Planner JSX
+     - Fire‑drill JSX (print‑only)
+============================================================ */
+/* ============================================================
+   PART 2 OF 3 — MAIN UI + FIRE‑DRILL PRINT‑ONLY
+============================================================ */
+
+return (
+  <>
+    {/* ======================================================
+       MAIN SCREEN‑ONLY PLANNER UI (NOT PRINTED)
+    ======================================================= */}
+    <div className="min-h-screen bg-gray-100 p-6 screen-only">
+
+      {/* HEADER */}
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-800">
+          Office Days Planner
+        </h1>
+        
+<div className="text-lg font-semibold text-gray-700 mt-1">
+  Week Commencing: {formatDate(weekInfo.start)}
+</div>
+
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => setAddOpen(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow"
+          >
+            Add Staff
+          </button>
+
+          <button
+            onClick={() => setExportOpen(true)}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg shadow"
+          >
+            Export
+          </button>
+        </div>
+      </div>
+
+      {/* SEARCH BAR */}
+      <input
+        placeholder="Search staff..."
+        className="mb-4 w-full h-10 px-3 rounded-md border border-gray-300"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+{/* SAFETY ALERTS + PEOPLE TOTALS (HORIZONTAL) */}
+<div className="mb-4 p-4 bg-white shadow rounded-lg">
+
+  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+
+    {days.map(d => {
+
+      const amOffice = filtered.filter(s =>
+        getRow(weekKey, s.id)[d + "AM"] === "Office"
+      );
+
+      const pmOffice = filtered.filter(s =>
+        getRow(weekKey, s.id)[d + "PM"] === "Office"
+      );
+
+      // AM Roles
+      const amMHFA = amOffice.some(s => s.roles?.mhfa);
+      const amFire = amOffice.some(s => s.roles?.fire);
+      const amFirst = amOffice.some(s => s.roles?.first);
+
+      // PM Roles
+      const pmMHFA = pmOffice.some(s => s.roles?.mhfa);
+      const pmFire = pmOffice.some(s => s.roles?.fire);
+      const pmFirst = pmOffice.some(s => s.roles?.first);
+
+      const warnings = [];
+      const add = (label, colour, slot) =>
+        warnings.push({ label, colour, slot });
+
+      // MHFA
+      if (!amMHFA && !pmMHFA) add("MHFA", "bg-yellow-400", "All Day");
+      else {
+        if (!amMHFA) add("MHFA", "bg-yellow-400", "AM");
+        if (!pmMHFA) add("MHFA", "bg-yellow-400", "PM");
+      }
+
+      // FIRE
+      if (!amFire && !pmFire) add("Fire Warden", "bg-red-500", "All Day");
+      else {
+        if (!amFire) add("Fire Warden", "bg-red-500", "AM");
+        if (!pmFire) add("Fire Warden", "bg-red-500", "PM");
+      }
+
+      // FIRST AIDER
+      if (!amFirst && !pmFirst) add("First Aider", "bg-green-500", "All Day");
+      else {
+        if (!amFirst) add("First Aider", "bg-green-500", "AM");
+        if (!pmFirst) add("First Aider", "bg-green-500", "PM");
+      }
+
+      return (
+        <div key={d} className="p-2 border rounded-lg bg-gray-50">
+
+          {/* DAY NAME */}
+          <div className="font-bold text-gray-800 mb-2">{d}</div>
+
+          {/* SAFETY ALERTS FIRST */}
+          {warnings.length === 0 ? (
+            <div className="text-green-700 font-medium mb-3">✔ All Roles Covered</div>
+          ) : (
+            <div className="flex flex-col gap-1 text-red-700 font-medium mb-3">
+              {warnings.map((w, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span>⚠</span>
+                  <span className={`w-3 h-3 rounded-full ${w.colour}`}></span>
+                  <span>No {w.label} ({w.slot})</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* PEOPLE TOTALS SECOND */}
+          <div className="text-sm text-gray-800">
+            <div>AM: {amOffice.length} people</div>
+            <div>PM: {pmOffice.length} people</div>
+          </div>
+
+        </div>
+      );
+    })}
+
+  </div>
+
+</div>
+
+      {/* WEEK CONTROLS */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <button onClick={goPrev} className="px-3 py-1.5 rounded-md border bg-white">◀</button>
+        <button onClick={goNext} className="px-3 py-1.5 rounded-md border bg-white">▶</button>
+        <button onClick={goToday} className="px-3 py-1.5 rounded-md bg-gray-200">
+          Next Week
+        </button>
+
+        <input
+          type="date"
+          className="h-9 px-3 rounded-md border border-gray-300"
+          onChange={(e) => {
+            if (!e.target.value) return;
+            const [y, m, d] = e.target.value.split("-").map(Number);
+            setAnchorDate(new Date(y, m - 1, d));
+          }}
+        />
+      </div>
+{/* ROLE KEY */}
+<div className="mb-4 p-4 bg-white shadow rounded-lg flex flex-wrap items-center gap-6 text-sm">
+
+  <div className="flex items-center gap-2">
+    <span className="w-3 h-3 rounded-full bg-green-500"></span>
+    <span>First Aider</span>
+  </div>
+
+  <div className="flex items-center gap-2">
+    <span className="w-3 h-3 rounded-full bg-red-500"></span>
+    <span>Fire Warden</span>
+  </div>
+
+  <div className="flex items-center gap-2">
+    <span className="w-3 h-3 rounded-full bg-yellow-400"></span>
+    <span>MHFA</span>
+  </div>
+
+  <div className="flex items-center gap-2">
+    <span className="font-bold text-blue-700">G</span>
+    <span>Guest</span>
+  </div>
+
+</div>
+      {/* MAIN TABLE */}
+      <div className="overflow-x-auto bg-white shadow rounded-lg">
+        <table className="min-w-full border-collapse">
+          <thead>
+            <tr className="bg-gray-50 border-b">
+              <th className="sticky left-0 bg-gray-50 px-4 py-2 text-left">Name</th>
+              <th className="px-4 py-2 text-left">Comment</th>
+
+              {days.map(d => (
+                <th key={d} className="px-4 py-2 text-left align-top">
+                  <div className="flex flex-col">
+                    <span className="font-semibold">{d}</span>
+                    <span className="text-sm text-gray-600">AM</span>
+                    <span className="text-sm text-gray-600">PM</span>
+                  </div>
+                </th>
+              ))}
+
+              <th className="px-4 py-2 text-left">Edit</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filtered.map(s => {
+              const row = getRow(weekKey, s.id);
+
+              return (
+                <tr key={s.id} className="border-b hover:bg-gray-50">
+
+                  {/* NAME */}
+                  <td className="sticky left-0 bg-white px-4 py-2 font-medium text-gray-800 whitespace-nowrap">
+                    {s.name} ({s.number})
+                    {s.roles?.guest && (
+                      <span className="ml-2 font-bold text-blue-700">G</span>
+                    )}
+                    <span className="inline-flex ml-3 gap-1">
+                      {s.roles?.mhfa && <ColourDot colour="bg-yellow-400" />}
+                      {s.roles?.fire && <ColourDot colour="bg-red-500" />}
+                      {s.roles?.first && <ColourDot colour="bg-green-500" />}
+                    </span>
+                  </td>
+
+                  {/* COMMENT */}
+                  <td className="px-4 py-2">
+                    <input
+                      type="text"
+                      className="w-32 md:w-48 px-2 py-1 border rounded"
+                      value={row.comment}
+                      onChange={(e) =>
+                        updateField(s.id, "comment", e.target.value)
+                      }
+                    />
+                  </td>
+
+                  {/* AM + PM */}
+                  {days.map(d => (
+                    <td key={s.id + d} className="px-4 py-2 align-top">
+                      <div className="flex flex-col gap-1">
+                        <select
+                          className="w-20 px-2 py-1 border rounded"
+                          value={row[d + "AM"]}
+                          onChange={(e) =>
+                            updateField(s.id, d + "AM", e.target.value)
+                          }
+                        >
+                          {options.map(o => (
+                            <option key={o} value={o}>
+                              {o || "—"}
+                            </option>
+                          ))}
+                        </select>
+
+                        <select
+                          className="w-20 px-2 py-1 border rounded"
+                          value={row[d + "PM"]}
+                          onChange={(e) =>
+                            updateField(s.id, d + "PM", e.target.value)
+                          }
+                        >
+                          {options.map(o => (
+                            <option key={o} value={o}>
+                              {o || "—"}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
+                  ))}
+
+                  {/* EDIT */}
+                  <td className="px-4 py-2">
+                    <button
+                      onClick={() => {
+                        setEditTarget({ ...s });
+                        setEditOpen(true);
+                      }}
+                      className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300"
+                    >
+                      Edit
+                    </button>
+                  </td>
+
+                </tr>
+              );
+            })}
+          </tbody>
+
+
+        </table>
+      </div>
+    
+      </div>
+      {/* END OF .screen-only (NOT PRINTED) */}
+
+{/* ======================================================
+   FIRE‑DRILL ROLL — PRINT ONLY
+   A3 LANDSCAPE, WITH KEY + ROLES NEXT TO NAMES
+====================================================== */}
+<div className="print-only p-6 text-gray-900 text-sm">
+
+{/* TITLE */}
+<h2 className="text-3xl font-bold mb-2 text-center">
+  Fire Drill Roll — Office Attendance
+</h2>
+
+<div className="text-center font-semibold mb-8">
+  Week Commencing: {formatDate(weekInfo.start)}
+</div>
+
+{/* PRINT ROLE KEY */}
+<div className="mb-6 flex flex-wrap gap-8 text-base">
+  <div className="flex items-center gap-2">
+    <span className="w-4 h-4 rounded-full bg-yellow-400"></span>
+    <span>MHFA</span>
+  </div>
+  <div className="flex items-center gap-2">
+    <span className="w-4 h-4 rounded-full bg-red-500"></span>
+    <span>Fire Warden</span>
+  </div>
+  <div className="flex items-center gap-2">
+    <span className="w-4 h-4 rounded-full bg-green-500"></span>
+    <span>First Aider</span>
+  </div>
+  <div className="flex items-center gap-2">
+    <span className="font-bold text-blue-700">G</span>
+    <span>Guest</span>
+  </div>
+</div>
+
+{/* MAIN PRINT TABLE */}
+<table className="w-full border-collapse text-left text-base whitespace-nowrap">
+  <thead>
+    <tr>
+      <th className="border p-2 sticky left-0 bg-white">Name</th>
+
+      {days.map(d => (
+        <React.Fragment key={d}>
+          <th className="border p-2">{d} AM</th>
+          <th className="border p-2">{d} PM</th>
+        </React.Fragment>
+      ))}
+
+      <th className="border p-2">Comments</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {staff
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(s => {
+        const row = getRow(weekKey, s.id);
+
+        return (
+          <tr key={s.id}>
+
+            {/* NAME + ROLES */}
+            <td className="border p-2 sticky left-0 bg-white font-semibold flex items-center gap-2 whitespace-nowrap">
+              <span>{s.name}</span>
+
+              {/* ROLE ICONS */}
+              {s.roles?.mhfa && (
+                <span className="w-3 h-3 rounded-full bg-yellow-400"></span>
+              )}
+              {s.roles?.fire && (
+                <span className="w-3 h-3 rounded-full bg-red-500"></span>
+              )}
+              {s.roles?.first && (
+                <span className="w-3 h-3 rounded-full bg-green-500"></span>
+              )}
+              {s.roles?.guest && (
+                <span className="font-bold text-blue-700">G</span>
+              )}
+            </td>
+
+            {/* AM/PM */}
+            {days.map(d => (
+              <React.Fragment key={s.id + d}>
+                <td className="border p-2">
+                  {row[d + "AM"] === "Office" ? "✔" : ""}
+                </td>
+                <td className="border p-2">
+                  {row[d + "PM"] === "Office" ? "✔" : ""}
+                </td>
+              </React.Fragment>
+            ))}
+
+            {/* COMMENT */}
+            <td className="border p-2">{row.comment}</td>
+          </tr>
+        );
+      })}
+  </tbody>
+
+</table>
+
+</div>
+{/* ======================================================
+         MODALS
+      ======================================================= */}
+
+{addOpen && (
+        <AddStaffModal
+          close={() => setAddOpen(false)}
+          add={(name, number, roles) => {
+            if (!name.trim() || !number.trim()) return;
+            setStaff(prev => [
+              ...prev,
+              {
+                id: uid(),
+                name,
+                number,
+                roles
+              }
+            ]);
+            setAddOpen(false);
+          }}
+        />
+      )}
+
+      {editOpen && editTarget && (
+        <EditStaffModal
+          close={() => setEditOpen(false)}
+          staff={editTarget}
+          setStaffData={setEditTarget}
+          save={(updated) => {
+            setStaff(prev =>
+              prev.map(p => (p.id === updated.id ? updated : p))
+            );
+            setEditOpen(false);
+          }}
+          deleteStaff={(id) => {
+            if (!window.confirm("Delete staff?")) return;
+
+            setStaff(prev => prev.filter(s => s.id !== id));
+
+            setSchedule(prev => {
+              const cp = { ...prev };
+              Object.keys(cp).forEach(wk => {
+                if (cp[wk][id]) delete cp[wk][id];
+              });
+              return cp;
+            });
+
+            setEditOpen(false);
+          }}
+        />
+      )}
+
+      {exportOpen && (
+        <ExportModal
+          close={() => setExportOpen(false)}
+          printPDF={printPDF}
+        />
+      )}
+
+    </>
+  );
+}
+
+
+/* =====================================
+   COMPONENTS — ADD STAFF MODAL
+====================================== */
+
+function AddStaffModal({ close, add }) {
+  const [name, setName] = useState("");
+  const [number, setNumber] = useState("");
+  const [roles, setRoles] = useState({
+    mhfa: false,
+    fire: false,
+    first: false,
+    guest: false
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white/90 rounded-xl shadow-xl p-6 w-full max-w-md">
+
+        <h2 className="text-xl font-bold mb-4">Add New Staff</h2>
+
+        <div className="space-y-3">
+
+          <input
+            className="h-10 px-3 w-full rounded-md border"
+            placeholder="Full Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+
+          <input
+            className="h-10 px-3 w-full rounded-md border"
+            placeholder="Staff Number"
+            value={number}
+            onChange={(e) => setNumber(e.target.value)}
+          />
+
+          <div className="flex gap-4 flex-wrap text-gray-800">
+
+            <RoleCheckbox
+              label="MHFA"
+              colour="bg-yellow-400"
+              value={roles.mhfa}
+              onChange={(v) => setRoles({ ...roles, mhfa: v })}
+            />
+
+            <RoleCheckbox
+              label="Fire"
+              colour="bg-red-500"
+              value={roles.fire}
+              onChange={(v) => setRoles({ ...roles, fire: v })}
+            />
+
+            <RoleCheckbox
+              label="First Aider"
+              colour="bg-green-500"
+              value={roles.first}
+              onChange={(v) => setRoles({ ...roles, first: v })}
+            />
+
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={roles.guest}
+                onChange={(e) =>
+                  setRoles({ ...roles, guest: e.target.checked })
+                }
+              />
+              Guest (G)
+            </label>
+
+          </div>
+
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+
+          <button
+            onClick={close}
+            className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+
+          <button
+            onClick={() => add(name, number, roles)}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Add
+          </button>
+
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+
+/* =====================================
+   COMPONENTS — EDIT STAFF MODAL
+====================================== */
+
+function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white/90 rounded-xl shadow-xl p-6 w-full max-w-md">
+
+        <h2 className="text-xl font-bold mb-4">Edit Staff</h2>
+
+        <div className="space-y-3">
+
+          <input
+            className="h-10 px-3 w-full rounded-md border"
+            placeholder="Full Name"
+            value={staff.name}
+            onChange={(e) =>
+              setStaffData({ ...staff, name: e.target.value })
+            }
+          />
+
+          <input
+            className="h-10 px-3 w-full rounded-md border"
+            placeholder="Staff Number"
+            value={staff.number}
+            onChange={(e) =>
+              setStaffData({ ...staff, number: e.target.value })
+            }
+          />
+
+          <div className="flex gap-4 flex-wrap text-gray-800">
+
+            <RoleCheckbox
+              label="MHFA"
+              colour="bg-yellow-400"
+              value={staff.roles.mhfa}
+              onChange={(v) =>
+                setStaffData({
+                  ...staff,
+                  roles: { ...staff.roles, mhfa: v }
+                })
+              }
+            />
+
+            <RoleCheckbox
+              label="Fire"
+              colour="bg-red-500"
+              value={staff.roles.fire}
+              onChange={(v) =>
+                setStaffData({
+                  ...staff,
+                  roles: { ...staff.roles, fire: v }
+                })
+              }
+            />
+
+            <RoleCheckbox
+              label="First Aider"
+              colour="bg-green-500"
+              value={staff.roles.first}
+              onChange={(v) =>
+                setStaffData({
+                  ...staff,
+                  roles: { ...staff.roles, first: v }
+                })
+              }
+            />
+
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={staff.roles.guest}
+                onChange={(e) =>
+                  setStaffData({
+                    ...staff,
+                    roles: { ...staff.roles, guest: e.target.checked }
+                  })
+                }
+              />
+              Guest (G)
+            </label>
+
+          </div>
+
+        </div>
+
+        <div className="mt-6 flex justify-between">
+
+          <button
+            onClick={() => deleteStaff(staff.id)}
+            className="px-4 py-2 rounded-lg bg-red-200 text-red-800 hover:bg-red-300"
+          >
+            Delete Staff
+          </button>
+
+          <div className="flex gap-3">
+            <button
+              onClick={close}
+              className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={() => save(staff)}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+            >
+              Save
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+
+/* =====================================
+   COMPONENTS — EXPORT MODAL
+====================================== */
+
+function ExportModal({ close, printPDF }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white/90 rounded-xl shadow-xl p-6 w-full max-w-sm">
+
+        <h2 className="text-xl font-bold mb-4">Export Options</h2>
+
+        <div className="flex flex-col gap-3">
+
+          <button
+            onClick={() => {
+              printPDF();
+              close();
+            }}
+            className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700"
+          >
+            Print Fire Drill Roll Only
+          </button>
+
+          <button
+            onClick={close}
+            className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+
+/* =====================================
+   COMPONENTS — ROLE CHECKBOX / DOT
+====================================== */
+
+function RoleCheckbox({ label, colour, value, onChange }) {
+  return (
+    <label className="flex items-center gap-2">
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="inline-flex items-center gap-1">
+        <span className={`w-3 h-3 rounded-full inline-block ${colour}`} />
+        {label}
+      </span>
+    </label>
+  );
+}
+
+function ColourDot({ colour }) {
+  return <span className={`w-3 h-3 rounded-full inline-block ${colour}`} />;
+}
+
+
+/* =====================================
+   UTILITIES
+====================================== */
+
+function uid() {
+  return crypto.randomUUID
+    ? crypto.randomUUID()
+    : "id_" + Math.random().toString(36).substring(2);
+}
+
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+
+function formatDate(dt) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${d}/${m}/${y}`;
+}
+
+function stripTime(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function startOfISOWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay() || 7;
+  d.setDate(d.getDate() - (day - 1));
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfISOWeek(date) {
+  const s = startOfISOWeek(date);
+  const e = new Date(s);
+  e.setDate(s.getDate() + 4);
+  e.setHours(23, 59, 59, 999);
+  return e;
+}
+
+function getISOWeekInfo(date) {
+  const d = new Date(date);
+  const day = d.getDay() || 7;
+  const thursday = new Date(d);
+  thursday.setDate(d.getDate() + (4 - day));
+
+  const year = thursday.getFullYear();
+  const monday = startOfISOWeek(d);
+  const friday = endOfISOWeek(d);
+
+  const yearStart = new Date(year, 0, 1);
+  const diffDays =
+    Math.floor((stripTime(thursday) - stripTime(yearStart)) / 86400000) + 1;
+  const week = Math.ceil(diffDays / 7);
+
+  return { week, year, start: monday, end: friday };
+}
+
+function weekKeyFromDate(date) {
+  const info = getISOWeekInfo(date);
+  return `${info.year}-W${String(info.week).padStart(2, "0")}`;
+}
+
+function getMondayFromWeekKey(weekKey) {
+  const [y, w] = weekKey.split("-W");
+  const year = Number(y);
+  const week = Number(w);
+
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = jan4.getDay() || 7;
+
+  const mon1 = new Date(jan4);
+  mon1.setDate(jan4.getDate() - (jan4Day - 1));
+
+  const mon = new Date(mon1);
+  mon.setDate(mon1.getDate() + (week - 1) * 7);
+
+  return mon;
+}

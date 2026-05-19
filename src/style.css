@@ -1,0 +1,28 @@
+.print-only {
+  display: none !important;
+}
+
+@media print {
+
+  @page {
+    size: A3 landscape;
+    margin: 10mm;
+  }
+
+  .screen-only {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  table, th, td {
+    border: 1px solid black !important;
+    border-collapse: collapse !important;
+  }
+
+  .whitespace-nowrap {
+    white-space: nowrap !important;
+  }
+}
