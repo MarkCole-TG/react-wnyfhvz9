@@ -10,6 +10,10 @@ import { useState, useEffect, useMemo } from "react";
 ------------------------------------------ */
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 const options = ["", "WFH", "Office", "Site", "Holiday", "Absent", "Training"];
+const MIN_MHFA = 1;
+const MIN_FIRE = 3;
+const MIN_FIRST = 2;
+const MIN_DIRECTOR = 1;
 
 /* ============================================================
    MAIN APP COMPONENT
@@ -17,11 +21,32 @@ const options = ["", "WFH", "Office", "Site", "Holiday", "Absent", "Training"];
 export default function App() {
 
   /* -----------------------------------------
-     EMPTY INITIAL STORAGE (FRESH BUILD)
+     LOAD FROM LOCALSTORAGE ON STARTUP
   ------------------------------------------ */
-  const [staff, setStaff] = useState([]);       // no preload
-  const [schedule, setSchedule] = useState({}); // no preload
-  const [weekMeta, setWeekMeta] = useState({}); // no preload
+  const [staff, setStaff] = useState(() => {
+    try {
+      const saved = localStorage.getItem("planner/staff");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [schedule, setSchedule] = useState(() => {
+    try {
+      const saved = localStorage.getItem("planner/schedule");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [weekMeta, setWeekMeta] = useState(() => {
+    try {
+      const saved = localStorage.getItem("planner/weekMeta");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
   /* -----------------------------------------
      OPEN ON NEXT MONDAY
@@ -52,7 +77,7 @@ export default function App() {
   }, [weekMeta]);
 
   /* -----------------------------------------
-     AUTO‑COPY PREVIOUS WEEK (IF EXISTS)
+     AUTO‑INITIALIZE NEW WEEK (STAFF CARRY OVER, DAYS DO NOT)
   ------------------------------------------ */
   useEffect(() => {
     if (schedule[weekKey]) return;
@@ -60,9 +85,12 @@ export default function App() {
     const prevMonday = addDays(weekInfo.start, -7);
     const prevKey = weekKeyFromDate(prevMonday);
 
+    // Create empty schedule for the new week (days do not carry forward)
     setSchedule(prev => {
-      const cloned = prev[prevKey] ? JSON.parse(JSON.stringify(prev[prevKey])) : {};
-      return { ...prev, [weekKey]: cloned };
+      if (!prev[weekKey]) {
+        return { ...prev, [weekKey]: {} };
+      }
+      return prev;
     });
 
     setWeekMeta(prev =>
@@ -150,13 +178,18 @@ export default function App() {
   }, [search, staff]);
 
   /* -----------------------------------------
-     PRINT FIRE‑DRILL ONLY
+     PRINT FIRE‑DRILL + ORIENTATION
   ------------------------------------------ */
+  const [printOrientation, setPrintOrientation] = useState("landscape");
+
   const printPDF = () => {
     document.body.classList.add("print-mode");
+    document.body.classList.add(printOrientation === "landscape" ? "print-landscape" : "print-portrait");
     setTimeout(() => {
       window.print();
       document.body.classList.remove("print-mode");
+      document.body.classList.remove("print-landscape");
+      document.body.classList.remove("print-portrait");
     }, 40);
   };
 
@@ -245,39 +278,48 @@ return (
         getRow(weekKey, s.id)[d + "PM"] === "Office"
       );
 
-      // AM Roles
-      const amMHFA = amOffice.some(s => s.roles?.mhfa);
-      const amFire = amOffice.some(s => s.roles?.fire);
-      const amFirst = amOffice.some(s => s.roles?.first);
+      // AM Roles - count
+      const amMHFACount = amOffice.filter(s => s.roles?.mhfa).length;
+      const amFireCount = amOffice.filter(s => s.roles?.fire).length;
+      const amFirstCount = amOffice.filter(s => s.roles?.first).length;
+      const amDirectorCount = amOffice.filter(s => s.roles?.director).length;
 
-      // PM Roles
-      const pmMHFA = pmOffice.some(s => s.roles?.mhfa);
-      const pmFire = pmOffice.some(s => s.roles?.fire);
-      const pmFirst = pmOffice.some(s => s.roles?.first);
+      // PM Roles - count
+      const pmMHFACount = pmOffice.filter(s => s.roles?.mhfa).length;
+      const pmFireCount = pmOffice.filter(s => s.roles?.fire).length;
+      const pmFirstCount = pmOffice.filter(s => s.roles?.first).length;
+      const pmDirectorCount = pmOffice.filter(s => s.roles?.director).length;
 
       const warnings = [];
       const add = (label, colour, slot) =>
         warnings.push({ label, colour, slot });
 
-      // MHFA
-      if (!amMHFA && !pmMHFA) add("MHFA", "bg-yellow-400", "All Day");
+      // MHFA (min 1)
+      if (amMHFACount < MIN_MHFA && pmMHFACount < MIN_MHFA) add("MHFA", "bg-yellow-400", "All Day");
       else {
-        if (!amMHFA) add("MHFA", "bg-yellow-400", "AM");
-        if (!pmMHFA) add("MHFA", "bg-yellow-400", "PM");
+        if (amMHFACount < MIN_MHFA) add("MHFA", "bg-yellow-400", "AM");
+        if (pmMHFACount < MIN_MHFA) add("MHFA", "bg-yellow-400", "PM");
       }
 
-      // FIRE
-      if (!amFire && !pmFire) add("Fire Warden", "bg-red-500", "All Day");
+      // FIRE (min 3)
+      if (amFireCount < MIN_FIRE && pmFireCount < MIN_FIRE) add("Fire Wardens (3+)", "bg-red-500", "All Day");
       else {
-        if (!amFire) add("Fire Warden", "bg-red-500", "AM");
-        if (!pmFire) add("Fire Warden", "bg-red-500", "PM");
+        if (amFireCount < MIN_FIRE) add("Fire Wardens (3+)", "bg-red-500", "AM");
+        if (pmFireCount < MIN_FIRE) add("Fire Wardens (3+)", "bg-red-500", "PM");
       }
 
-      // FIRST AIDER
-      if (!amFirst && !pmFirst) add("First Aider", "bg-green-500", "All Day");
+      // FIRST AIDER (min 2)
+      if (amFirstCount < MIN_FIRST && pmFirstCount < MIN_FIRST) add("First Aiders (2+)", "bg-green-500", "All Day");
       else {
-        if (!amFirst) add("First Aider", "bg-green-500", "AM");
-        if (!pmFirst) add("First Aider", "bg-green-500", "PM");
+        if (amFirstCount < MIN_FIRST) add("First Aiders (2+)", "bg-green-500", "AM");
+        if (pmFirstCount < MIN_FIRST) add("First Aiders (2+)", "bg-green-500", "PM");
+      }
+
+      // DIRECTOR (min 1)
+      if (amDirectorCount < MIN_DIRECTOR && pmDirectorCount < MIN_DIRECTOR) add("Director", "bg-purple-500", "All Day");
+      else {
+        if (amDirectorCount < MIN_DIRECTOR) add("Director", "bg-purple-500", "AM");
+        if (pmDirectorCount < MIN_DIRECTOR) add("Director", "bg-purple-500", "PM");
       }
 
       return (
@@ -288,7 +330,7 @@ return (
 
           {/* SAFETY ALERTS FIRST */}
           {warnings.length === 0 ? (
-            <div className="text-green-700 font-medium mb-3">✔ All Roles Covered</div>
+            <div className="text-green-700 font-medium mb-3 bg-green-50 p-2 rounded">✔ All Roles Covered</div>
           ) : (
             <div className="flex flex-col gap-1 text-red-700 font-medium mb-3">
               {warnings.map((w, i) => (
@@ -337,18 +379,23 @@ return (
 <div className="mb-4 p-4 bg-white shadow rounded-lg flex flex-wrap items-center gap-6 text-sm">
 
   <div className="flex items-center gap-2">
-    <span className="w-3 h-3 rounded-full bg-green-500"></span>
-    <span>First Aider</span>
+    <span className="w-3 h-3 rounded-full bg-yellow-400"></span>
+    <span>MHFA (1+)</span>
   </div>
 
   <div className="flex items-center gap-2">
     <span className="w-3 h-3 rounded-full bg-red-500"></span>
-    <span>Fire Warden</span>
+    <span>Fire Warden (3+)</span>
   </div>
 
   <div className="flex items-center gap-2">
-    <span className="w-3 h-3 rounded-full bg-yellow-400"></span>
-    <span>MHFA</span>
+    <span className="w-3 h-3 rounded-full bg-green-500"></span>
+    <span>First Aider (2+)</span>
+  </div>
+
+  <div className="flex items-center gap-2">
+    <span className="w-3 h-3 rounded-full bg-purple-500"></span>
+    <span>Associate/Director (1+)</span>
   </div>
 
   <div className="flex items-center gap-2">
@@ -396,6 +443,7 @@ return (
                       {s.roles?.mhfa && <ColourDot colour="bg-yellow-400" />}
                       {s.roles?.fire && <ColourDot colour="bg-red-500" />}
                       {s.roles?.first && <ColourDot colour="bg-green-500" />}
+                      {s.roles?.director && <ColourDot colour="bg-purple-500" />}
                     </span>
                   </td>
 
@@ -405,6 +453,7 @@ return (
                       type="text"
                       className="w-32 md:w-48 px-2 py-1 border rounded"
                       value={row.comment}
+                      maxLength={40}
                       onChange={(e) =>
                         updateField(s.id, "comment", e.target.value)
                       }
@@ -501,6 +550,10 @@ return (
     <span>First Aider</span>
   </div>
   <div className="flex items-center gap-2">
+    <span className="w-4 h-4 rounded-full bg-purple-500"></span>
+    <span>Director</span>
+  </div>
+  <div className="flex items-center gap-2">
     <span className="font-bold text-blue-700">G</span>
     <span>Guest</span>
   </div>
@@ -546,6 +599,9 @@ return (
               )}
               {s.roles?.first && (
                 <span className="w-3 h-3 rounded-full bg-green-500"></span>
+              )}
+              {s.roles?.director && (
+                <span className="w-3 h-3 rounded-full bg-purple-500"></span>
               )}
               {s.roles?.guest && (
                 <span className="font-bold text-blue-700">G</span>
@@ -630,6 +686,8 @@ return (
         <ExportModal
           close={() => setExportOpen(false)}
           printPDF={printPDF}
+          printOrientation={printOrientation}
+          setPrintOrientation={setPrintOrientation}
         />
       )}
 
@@ -649,6 +707,7 @@ function AddStaffModal({ close, add }) {
     mhfa: false,
     fire: false,
     first: false,
+    director: false,
     guest: false
   });
 
@@ -669,9 +728,10 @@ function AddStaffModal({ close, add }) {
 
           <input
             className="h-10 px-3 w-full rounded-md border"
-            placeholder="Staff Number"
+            placeholder="Staff Number (4 digits max)"
             value={number}
-            onChange={(e) => setNumber(e.target.value)}
+            maxLength={4}
+            onChange={(e) => setNumber(e.target.value.slice(0, 4))}
           />
 
           <div className="flex gap-4 flex-wrap text-gray-800">
@@ -695,6 +755,13 @@ function AddStaffModal({ close, add }) {
               colour="bg-green-500"
               value={roles.first}
               onChange={(v) => setRoles({ ...roles, first: v })}
+            />
+
+            <RoleCheckbox
+              label="Associate/Director"
+              colour="bg-purple-500"
+              value={roles.director}
+              onChange={(v) => setRoles({ ...roles, director: v })}
             />
 
             <label className="flex items-center gap-2">
@@ -760,10 +827,11 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
 
           <input
             className="h-10 px-3 w-full rounded-md border"
-            placeholder="Staff Number"
+            placeholder="Staff Number (4 digits max)"
             value={staff.number}
+            maxLength={4}
             onChange={(e) =>
-              setStaffData({ ...staff, number: e.target.value })
+              setStaffData({ ...staff, number: e.target.value.slice(0, 4) })
             }
           />
 
@@ -801,6 +869,18 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
                 setStaffData({
                   ...staff,
                   roles: { ...staff.roles, first: v }
+                })
+              }
+            />
+
+            <RoleCheckbox
+              label="Associate/Director"
+              colour="bg-purple-500"
+              value={staff.roles.director}
+              onChange={(v) =>
+                setStaffData({
+                  ...staff,
+                  roles: { ...staff.roles, director: v }
                 })
               }
             />
@@ -860,7 +940,7 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
    COMPONENTS — EXPORT MODAL
 ====================================== */
 
-function ExportModal({ close, printPDF }) {
+function ExportModal({ close, printPDF, printOrientation, setPrintOrientation }) {
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-white/90 rounded-xl shadow-xl p-6 w-full max-w-sm">
@@ -869,6 +949,29 @@ function ExportModal({ close, printPDF }) {
 
         <div className="flex flex-col gap-3">
 
+          <div className="flex gap-2">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="orientation"
+                value="landscape"
+                checked={printOrientation === "landscape"}
+                onChange={(e) => setPrintOrientation(e.target.value)}
+              />
+              Landscape (A3)
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="orientation"
+                value="portrait"
+                checked={printOrientation === "portrait"}
+                onChange={(e) => setPrintOrientation(e.target.value)}
+              />
+              Portrait (A3)
+            </label>
+          </div>
+
           <button
             onClick={() => {
               printPDF();
@@ -876,7 +979,7 @@ function ExportModal({ close, printPDF }) {
             }}
             className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700"
           >
-            Print Fire Drill Roll Only
+            Print Fire Drill Roll
           </button>
 
           <button

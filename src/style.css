@@ -4,17 +4,25 @@
 
 @media print {
 
-  @page {
-    size: A3 landscape;
-    margin: 10mm;
-  }
-
   .screen-only {
     display: none !important;
   }
 
   .print-only {
     display: block !important;
+  }
+
+  body.print-landscape {
+    --page-size: A3 landscape;
+  }
+
+  body.print-portrait {
+    --page-size: A3 portrait;
+  }
+
+  @page {
+    size: var(--page-size, A3 landscape);
+    margin: 10mm;
   }
 
   table, th, td {
@@ -24,5 +32,14 @@
 
   .whitespace-nowrap {
     white-space: nowrap !important;
+  }
+
+  /* Scale table for 40+ people */
+  table {
+    font-size: 0.85rem;
+  }
+
+  th, td {
+    padding: 4px !important;
   }
 }
