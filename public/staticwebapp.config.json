@@ -1,5 +1,21 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html"
-  }
+  },
+  "globalHeaders": {
+    "Cache-Control": "max-age=3600"
+  },
+  "routes": [
+    {
+      "route": "/api/*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/static/*",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    }
+  ]
+
 }
