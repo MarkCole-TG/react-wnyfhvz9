@@ -1,5 +1,5 @@
 {
-  "name": "",
+  "name": "api",
   "version": "1.0.0",
   "description": "",
   "main": "dist/src/functions/*.js",
@@ -15,8 +15,7 @@
     "@azure/functions": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "18.x",
-    "azure-functions-core-tools": "^4.x",
+    "@types/node": "^18.x",
     "rimraf": "^5.0.0",
     "typescript": "^6.0.3"
   }
