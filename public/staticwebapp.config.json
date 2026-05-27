@@ -1,6 +1,7 @@
 {
   "navigationFallback": {
-    "rewrite": "/index.html"
+    "rewrite": "/index.html",
+    "exclude": ["/api/*"]
   },
   "globalHeaders": {
     "Cache-Control": "max-age=3600"
@@ -9,12 +10,6 @@
     {
       "route": "/api/*",
       "allowedRoles": ["authenticated"]
-    },
-    {
-      "route": "/static/*",
-      "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
     }
   ]
 
