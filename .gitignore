@@ -1,1 +1,27 @@
-node_modules
+# Node
+node_modules/
+/api/node_modules/
+
+# Build outputs
+build/
+/api/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment variables
+.env*
+/api/local.settings.json
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Azure Static Web Apps
+.swa/
+
+# Coverage / test
+coverage/
