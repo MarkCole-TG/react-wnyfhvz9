@@ -8,8 +8,7 @@
   },
   "routes": [
     {
-      "route": "/api/*",
-      "allowedRoles": ["authenticated"]
+      "route": "/api/*"
     }
   ]
 
