@@ -9,14 +9,16 @@
     "clean": "rimraf dist",
     "prestart": "npm run clean && npm run build",
     "start": "func start",
-    "test": "echo \"No tests yet...\""
+    "test": "tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
-    "@azure/functions": "^4.0.0"
+    "@azure/functions": "^4.0.0",
+    "jose": "^5.9.6"
   },
   "devDependencies": {
     "@types/node": "^18.x",
     "rimraf": "^5.0.0",
+    "tsx": "^4.20.6",
     "typescript": "^6.0.3"
   }
 }

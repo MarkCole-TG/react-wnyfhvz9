@@ -1,0 +1,32 @@
+import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { authorizeRequest } from "../security/authorize";
+import { fail, ok } from "../http/response";
+import { getJsonBody } from "../http/params";
+import { createStaff, StaffCreatePayload } from "../data/store";
+
+export async function CreateStaff(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+  const auth = await authorizeRequest(req, context.invocationId, ["planner", "admin"]);
+  if (!auth.ok) {
+    const failure = auth as unknown as { status: number; body: { error: { code: string; message: string; correlationId: string } } };
+    return fail(failure.status, failure.body.error.code, failure.body.error.message, failure.body.error.correlationId);
+  }
+
+  const body = await getJsonBody<StaffCreatePayload>(req);
+  try {
+    const staff = createStaff(body);
+    return ok({ staff }, 201);
+  } catch (error) {
+    if (error instanceof Error && error.message === "invalid_staff") {
+      return fail(400, "invalid_staff", "Staff name and number are required.", context.invocationId);
+    }
+
+    return fail(500, "server_error", "Unable to create staff.", context.invocationId);
+  }
+}
+
+app.http("CreateStaff", {
+  methods: ["POST"],
+  authLevel: "anonymous",
+  route: "v1/staff",
+  handler: CreateStaff,
+});
