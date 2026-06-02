@@ -40,7 +40,8 @@ function getExpectedIssuer(): string {
 }
 
 function getJwksUri(issuer: string): string {
-  return `${issuer}/discovery/v2.0/keys`;
+  const base = issuer.replace(/\/v2\.0\/?$/, "");
+  return `${base}/discovery/v2.0/keys`;
 }
 
 async function validateWithBypass(req: HttpRequest, token: string): Promise<TokenValidationResult | TokenValidationFailure> {
