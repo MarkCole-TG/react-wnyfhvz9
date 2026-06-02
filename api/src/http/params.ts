@@ -1,11 +1,17 @@
 import { HttpRequest } from "@azure/functions";
 
+export class InvalidJsonBodyError extends Error {
+  constructor() {
+    super("invalid_json");
+  }
+}
+
 export async function getJsonBody<T>(req: HttpRequest): Promise<T> {
   if (typeof req.json === "function") {
     try {
       return (await req.json()) as T;
     } catch {
-      return {} as T;
+      throw new InvalidJsonBodyError();
     }
   }
 

@@ -36,12 +36,14 @@ function request(options: {
   params?: Record<string, string>;
   query?: Record<string, string>;
   body?: unknown;
+  json?: () => Promise<unknown>;
 }) {
   return {
     headers: new Headers(options.headers ?? {}),
     params: options.params ?? {},
     query: new URLSearchParams(options.query ?? {}),
     body: options.body,
+    json: options.json,
   } as any;
 }
 
@@ -244,6 +246,54 @@ test("admin can lock a week and update roles for another user", async () => {
 
       assert.equal(promotedCreate.status, 201);
       assert.equal((promotedCreate.jsonBody as any).staff.name, "Promoted User");
+    }
+  );
+});
+
+test("returns 400 when schedule payload JSON is malformed", async () => {
+  await withEnv(
+    {
+      AUTH_DEV_BYPASS: "true",
+      APP_USERS_JSON: JSON.stringify([
+        { userId: "user-planner", entraObjectId: "oid-planner", roles: ["planner"] },
+      ]),
+    },
+    async () => {
+      const created = await CreateStaff(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-planner",
+          },
+          body: {
+            name: "Malformed Json Staff",
+            number: "4001",
+          },
+        }),
+        context
+      );
+
+      const staffId = (created.jsonBody as any).staff.id;
+
+      const response = await UpsertSchedule(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-planner",
+          },
+          params: {
+            week: "2026-06-15",
+            staffId,
+          },
+          json: async () => {
+            throw new Error("Unexpected token }");
+          },
+        }),
+        context
+      );
+
+      assert.equal(response.status, 400);
+      assert.equal((response.jsonBody as any).error.code, "invalid_json");
     }
   );
 });
