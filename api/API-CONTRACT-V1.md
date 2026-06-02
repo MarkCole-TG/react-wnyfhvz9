@@ -121,4 +121,4 @@ Recommended error codes:
 2. EntraObjectId to AppUsers and UserRoles mapping enforced.
 3. Role policy enforced exactly as defined in this document.
 4. Error payload shape consistent across all endpoints.
-5. OpenAPI definition mirrors this contract and is kept in sync.
+5. OpenAPI definition mirrors this contract and is kept in sync. (Not yet implemented; planned requirement.)
