@@ -100,20 +100,19 @@ function ensureWeekSchedule(week: string) {
   return state.schedules[week];
 }
 
-function normalizeRowInput(input: SchedulePayload): Omit<ScheduleRow, "staffId" | "updatedAt"> {
-  const defaults = emptyRow();
+function normalizeRowInput(input: SchedulePayload): Partial<Omit<ScheduleRow, "staffId" | "updatedAt">> {
   return {
-    MonAM: input.MonAM ?? defaults.MonAM,
-    MonPM: input.MonPM ?? defaults.MonPM,
-    TueAM: input.TueAM ?? defaults.TueAM,
-    TuePM: input.TuePM ?? defaults.TuePM,
-    WedAM: input.WedAM ?? defaults.WedAM,
-    WedPM: input.WedPM ?? defaults.WedPM,
-    ThuAM: input.ThuAM ?? defaults.ThuAM,
-    ThuPM: input.ThuPM ?? defaults.ThuPM,
-    FriAM: input.FriAM ?? defaults.FriAM,
-    FriPM: input.FriPM ?? defaults.FriPM,
-    comment: input.comment ?? defaults.comment,
+    ...(input.MonAM !== undefined ? { MonAM: input.MonAM } : {}),
+    ...(input.MonPM !== undefined ? { MonPM: input.MonPM } : {}),
+    ...(input.TueAM !== undefined ? { TueAM: input.TueAM } : {}),
+    ...(input.TuePM !== undefined ? { TuePM: input.TuePM } : {}),
+    ...(input.WedAM !== undefined ? { WedAM: input.WedAM } : {}),
+    ...(input.WedPM !== undefined ? { WedPM: input.WedPM } : {}),
+    ...(input.ThuAM !== undefined ? { ThuAM: input.ThuAM } : {}),
+    ...(input.ThuPM !== undefined ? { ThuPM: input.ThuPM } : {}),
+    ...(input.FriAM !== undefined ? { FriAM: input.FriAM } : {}),
+    ...(input.FriPM !== undefined ? { FriPM: input.FriPM } : {}),
+    ...(input.comment !== undefined ? { comment: input.comment } : {}),
   };
 }
 
