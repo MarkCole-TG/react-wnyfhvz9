@@ -2,6 +2,8 @@ import { HttpRequest } from "@azure/functions";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { TokenPrincipal } from "./types";
 
+const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+
 interface TokenValidationResult {
   ok: true;
   principal: TokenPrincipal;
@@ -44,6 +46,17 @@ function getJwksUri(issuer: string): string {
   return `${base}/discovery/v2.0/keys`;
 }
 
+function getIssuerJwks(issuer: string) {
+  const cached = jwksByIssuer.get(issuer);
+  if (cached) {
+    return cached;
+  }
+
+  const created = createRemoteJWKSet(new URL(getJwksUri(issuer)));
+  jwksByIssuer.set(issuer, created);
+  return created;
+}
+
 async function validateWithBypass(req: HttpRequest, token: string): Promise<TokenValidationResult | TokenValidationFailure> {
   const entraObjectId = req.headers.get("x-dev-entra-object-id") || "";
   if (!entraObjectId) {
@@ -78,7 +91,7 @@ async function validateWithEntra(token: string): Promise<TokenValidationResult |
   }
 
   try {
-    const jwks = createRemoteJWKSet(new URL(getJwksUri(issuer)));
+    const jwks = getIssuerJwks(issuer);
     const verified = await jwtVerify(token, jwks, {
       issuer,
       audience,
