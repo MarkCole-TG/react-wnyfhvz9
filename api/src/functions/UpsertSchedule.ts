@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
-import { getJsonBody, parseWeek } from "../http/params";
+import { getJsonBody, InvalidJsonBodyError, parseWeek } from "../http/params";
 import { upsertScheduleRow } from "../data/store";
 import { SchedulePayload } from "../data/store";
 
@@ -18,9 +18,9 @@ export async function UpsertSchedule(req: HttpRequest, context: InvocationContex
     return fail(400, "missing_route_params", "Route parameters 'week' and 'staffId' are required.", context.invocationId);
   }
 
-  const body = await getJsonBody<SchedulePayload>(req);
-
+  let body: SchedulePayload;
   try {
+    body = await getJsonBody<SchedulePayload>(req);
     const row = upsertScheduleRow(week, staffId, body);
     if (!row) {
       return fail(404, "staff_not_found", "Staff record was not found.", context.invocationId);
@@ -28,6 +28,10 @@ export async function UpsertSchedule(req: HttpRequest, context: InvocationContex
 
     return ok({ week, row }, 200);
   } catch (error) {
+    if (error instanceof InvalidJsonBodyError) {
+      return fail(400, "invalid_json", "Request body must be valid JSON.", context.invocationId);
+    }
+
     if (error instanceof Error && error.message === "week_locked") {
       return fail(409, "week_locked", "The week is locked.", context.invocationId);
     }

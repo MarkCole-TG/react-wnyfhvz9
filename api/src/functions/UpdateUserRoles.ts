@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
-import { getJsonBody } from "../http/params";
+import { getJsonBody, InvalidJsonBodyError } from "../http/params";
 import { setUserRoles } from "../security/userStore";
 import { AppRole } from "../security/types";
 
@@ -21,7 +21,17 @@ export async function UpdateUserRoles(req: HttpRequest, context: InvocationConte
     return fail(failure.status, failure.body.error.code, failure.body.error.message, failure.body.error.correlationId);
   }
 
-  const body = await getJsonBody<RolePayload>(req);
+  let body: RolePayload;
+  try {
+    body = await getJsonBody<RolePayload>(req);
+  } catch (error) {
+    if (error instanceof InvalidJsonBodyError) {
+      return fail(400, "invalid_json", "Request body must be valid JSON.", context.invocationId);
+    }
+
+    return fail(500, "server_error", "Unable to update user roles.", context.invocationId);
+  }
+
   const entraObjectId = (body.entraObjectId ?? req.params.userId ?? "").trim();
   if (!entraObjectId) {
     return fail(400, "missing_user", "An Entra object id is required.", context.invocationId);

@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
-import { getJsonBody } from "../http/params";
+import { getJsonBody, InvalidJsonBodyError } from "../http/params";
 import { createStaff, StaffCreatePayload } from "../data/store";
 
 export async function CreateStaff(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
@@ -11,7 +11,17 @@ export async function CreateStaff(req: HttpRequest, context: InvocationContext):
     return fail(failure.status, failure.body.error.code, failure.body.error.message, failure.body.error.correlationId);
   }
 
-  const body = await getJsonBody<StaffCreatePayload>(req);
+  let body: StaffCreatePayload;
+  try {
+    body = await getJsonBody<StaffCreatePayload>(req);
+  } catch (error) {
+    if (error instanceof InvalidJsonBodyError) {
+      return fail(400, "invalid_json", "Request body must be valid JSON.", context.invocationId);
+    }
+
+    return fail(500, "server_error", "Unable to create staff.", context.invocationId);
+  }
+
   try {
     const staff = createStaff(body);
     return ok({ staff }, 201);
