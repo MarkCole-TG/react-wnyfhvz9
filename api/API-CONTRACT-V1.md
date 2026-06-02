@@ -111,7 +111,7 @@ Recommended error codes:
 
 ## Non-Functional Contract Notes
 
-- All mutating endpoints must be auditable with actor, action, target, timestamp, and correlationId.
+- All mutating endpoints must be auditable with actor, action, target, timestamp, and correlationId. (Not yet implemented; planned requirement.)
 - Week lock check is mandatory before schedule mutations.
 - Contract is backward compatible within v1; breaking changes require v2.
 
