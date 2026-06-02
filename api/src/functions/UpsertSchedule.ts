@@ -18,12 +18,7 @@ export async function UpsertSchedule(req: HttpRequest, context: InvocationContex
     return fail(400, "missing_route_params", "Route parameters 'week' and 'staffId' are required.", context.invocationId);
   }
 
-  let body: SchedulePayload;
-  try {
-    body = await getJsonBody<SchedulePayload>(req);
-  } catch {
-    return fail(400, "invalid_json", "Request body must be valid JSON.", context.invocationId);
-  }
+  const body = await getJsonBody<SchedulePayload>(req);
 
   try {
     const row = upsertScheduleRow(week, staffId, body);
