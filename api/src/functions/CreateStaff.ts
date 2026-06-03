@@ -30,6 +30,10 @@ export async function CreateStaff(req: HttpRequest, context: InvocationContext):
       return fail(400, "invalid_staff", "Staff name and number are required.", context.invocationId);
     }
 
+    if (error instanceof Error && error.message === "duplicate_staff") {
+      return fail(409, "duplicate_staff", "A staff member with the same name or number already exists.", context.invocationId);
+    }
+
     return fail(500, "server_error", "Unable to create staff.", context.invocationId);
   }
 }

@@ -134,10 +134,13 @@ export function getStaff(staffId: string) {
 
 export function createStaff(payload: StaffCreatePayload) {
   const timestamp = nowIso();
+  const normalizedName = (payload.name ?? "").trim();
+  const normalizedNameKey = normalizedName.toLowerCase();
+  const normalizedNumber = (payload.number ?? "").trim();
   const staff: StaffMember = {
     id: newId("staff"),
-    name: (payload.name ?? "").trim(),
-    number: (payload.number ?? "").trim(),
+    name: normalizedName,
+    number: normalizedNumber,
     title: payload.title?.trim() || undefined,
     active: payload.active ?? true,
     createdAt: timestamp,
@@ -146,6 +149,15 @@ export function createStaff(payload: StaffCreatePayload) {
 
   if (!staff.name || !staff.number) {
     throw new Error("invalid_staff");
+  }
+
+  const duplicate = state.staff.some((item) => {
+    const sameName = item.name.trim().toLowerCase() === normalizedNameKey;
+    const sameNumber = item.number.trim() === normalizedNumber;
+    return sameName || sameNumber;
+  });
+  if (duplicate) {
+    throw new Error("duplicate_staff");
   }
 
   state.staff.push(staff);
