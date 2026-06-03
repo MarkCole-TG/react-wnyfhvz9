@@ -4,7 +4,7 @@
 ============================================================ */
 import React from "react";
 import { useState, useEffect, useMemo } from "react";
-import { createStaffMember, fetchStaff, updateStaffMember } from "./api/staff";
+import { createStaffMember, deleteStaffMember, fetchStaff, updateStaffMember } from "./api/staff";
 import { fetchScheduleWeek, upsertScheduleEntry } from "./api/schedule";
 import { lockWeek, unlockWeek, updateUserRoles } from "./api/admin";
 import { fetchApiMessage } from "./api/message";
@@ -873,8 +873,32 @@ return (
               setIsSaving(false);
             }
           }}
-          deleteStaff={() => {
-            window.alert("Delete staff is not available in API v1 yet.");
+          deleteStaff={async (id) => {
+            if (!window.confirm("Delete staff?")) {
+              return;
+            }
+
+            setIsSaving(true);
+            try {
+              await deleteStaffMember(id);
+              setStaff(prev => prev.filter((member) => member.id !== id));
+              setSchedule(prev => {
+                const next = { ...prev };
+                for (const week of Object.keys(next)) {
+                  if (next[week]?.[id]) {
+                    next[week] = { ...next[week] };
+                    delete next[week][id];
+                  }
+                }
+                return next;
+              });
+              setEditOpen(false);
+              setErrorMessage("");
+            } catch (error) {
+              setErrorMessage(getErrorMessage(error, "Unable to delete staff."));
+            } finally {
+              setIsSaving(false);
+            }
           }}
         />
       )}

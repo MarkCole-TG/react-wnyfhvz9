@@ -63,6 +63,10 @@ This document defines the v1 contract for the backend API, including authenticat
 	- Purpose: update staff record.
 	- Roles: planner, admin.
 
+- DELETE /api/v1/staff/{staffId}
+	- Purpose: delete staff record.
+	- Roles: planner, admin.
+
 - POST /api/v1/weeks/{week}/lock
 	- Purpose: lock week against edits.
 	- Roles: admin.

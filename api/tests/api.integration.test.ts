@@ -1,6 +1,7 @@
 import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { CreateStaff } from "../src/functions/CreateStaff";
+import { DeleteStaff } from "../src/functions/DeleteStaff";
 import { GetSchedule } from "../src/functions/GetSchedule";
 import { GetStaff } from "../src/functions/GetStaff";
 import { LockWeek } from "../src/functions/LockWeek";
@@ -297,6 +298,99 @@ test("returns 400 when schedule payload JSON is malformed", async () => {
 
       assert.equal(response.status, 400);
       assert.equal((response.jsonBody as any).error.code, "invalid_json");
+    }
+  );
+});
+
+test("planner can delete staff and remove schedule rows", async () => {
+  await withEnv(
+    {
+      AUTH_DEV_BYPASS: "true",
+      NODE_ENV: "test",
+      APP_USERS_JSON: JSON.stringify([
+        { userId: "user-planner", entraObjectId: "oid-planner", roles: ["planner"] },
+        { userId: "user-viewer", entraObjectId: "oid-viewer", roles: ["viewer"] },
+      ]),
+    },
+    async () => {
+      const createResponse = await CreateStaff(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-planner",
+          },
+          body: {
+            name: "Delete Me",
+            number: "5001",
+          },
+        }),
+        context
+      );
+
+      const staffId = (createResponse.jsonBody as any).staff.id;
+
+      const upsertResponse = await UpsertSchedule(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-planner",
+          },
+          params: {
+            week: "2026-06-22",
+            staffId,
+          },
+          body: {
+            MonAM: "Office",
+          },
+        }),
+        context
+      );
+
+      assert.equal(upsertResponse.status, 200);
+
+      const deleteResponse = await DeleteStaff(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-planner",
+          },
+          params: {
+            staffId,
+          },
+        }),
+        context
+      );
+
+      assert.equal(deleteResponse.status, 204);
+
+      const staffReadResponse = await GetStaff(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-viewer",
+          },
+        }),
+        context
+      );
+
+      assert.equal(staffReadResponse.status, 200);
+      assert.equal((staffReadResponse.jsonBody as any).staff.length, 0);
+
+      const scheduleReadResponse = await GetSchedule(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-viewer",
+          },
+          query: {
+            week: "2026-06-22",
+          },
+        }),
+        context
+      );
+
+      assert.equal(scheduleReadResponse.status, 200);
+      assert.equal((scheduleReadResponse.jsonBody as any).rows.length, 0);
     }
   );
 });

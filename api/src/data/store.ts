@@ -132,6 +132,23 @@ export function getStaff(staffId: string) {
   return state.staff.find((item) => item.id === staffId) ?? null;
 }
 
+export function deleteStaff(staffId: string) {
+  const index = state.staff.findIndex((item) => item.id === staffId);
+  if (index < 0) {
+    return false;
+  }
+
+  state.staff.splice(index, 1);
+
+  for (const weekSchedule of Object.values(state.schedules)) {
+    if (weekSchedule[staffId]) {
+      delete weekSchedule[staffId];
+    }
+  }
+
+  return true;
+}
+
 export function createStaff(payload: StaffCreatePayload) {
   const timestamp = nowIso();
   const normalizedName = (payload.name ?? "").trim();
