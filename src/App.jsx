@@ -4,6 +4,10 @@
 ============================================================ */
 import React from "react";
 import { useState, useEffect, useMemo } from "react";
+import { createStaffMember, fetchStaff, updateStaffMember } from "./api/staff";
+import { fetchScheduleWeek, upsertScheduleEntry } from "./api/schedule";
+import { lockWeek, unlockWeek, updateUserRoles } from "./api/admin";
+import { fetchApiMessage } from "./api/message";
 
 /* -----------------------------------------
    DAYS + OPTIONS
@@ -15,6 +19,49 @@ const MIN_FIRE = 3;
 const MIN_FIRST = 2;
 const MIN_DIRECTOR = 1;
 
+const defaultRoles = {
+  mhfa: false,
+  fire: false,
+  first: false,
+  director: false,
+  guest: false
+};
+
+function normalizeStaffMember(staff) {
+  const roles = staff?.roles || {};
+  return {
+    ...staff,
+    roles: {
+      ...defaultRoles,
+      mhfa: Boolean(roles.mhfa),
+      fire: Boolean(roles.fire),
+      first: Boolean(roles.first),
+      director: Boolean(roles.director),
+      guest: Boolean(roles.guest)
+    }
+  };
+}
+
+function getErrorMessage(error, fallbackMessage) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+}
+
+function normalizeWeekRecord(weekIsoDate, weekRecord) {
+  return {
+    week: weekRecord?.week || weekIsoDate,
+    status: weekRecord?.status || "open",
+    lockedBy: weekRecord?.lockedBy,
+    lockedAt: weekRecord?.lockedAt,
+    unlockedBy: weekRecord?.unlockedBy,
+    unlockedAt: weekRecord?.unlockedAt,
+    updatedAt: weekRecord?.updatedAt
+  };
+}
+
 /* ============================================================
    MAIN APP COMPONENT
 ============================================================ */
@@ -23,30 +70,14 @@ export default function App() {
   /* -----------------------------------------
      LOAD FROM LOCALSTORAGE ON STARTUP
   ------------------------------------------ */
-  const [staff, setStaff] = useState(() => {
-    try {
-      const saved = localStorage.getItem("planner/staff");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [schedule, setSchedule] = useState(() => {
-    try {
-      const saved = localStorage.getItem("planner/schedule");
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [weekMeta, setWeekMeta] = useState(() => {
-    try {
-      const saved = localStorage.getItem("planner/weekMeta");
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [staff, setStaff] = useState([]);
+  const [schedule, setSchedule] = useState({});
+  const [isLoadingStaff, setIsLoadingStaff] = useState(true);
+  const [isLoadingWeek, setIsLoadingWeek] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [apiMessage, setApiMessage] = useState("");
+  const [weekRecords, setWeekRecords] = useState({});
 
   /* -----------------------------------------
      OPEN ON NEXT MONDAY
@@ -60,71 +91,57 @@ export default function App() {
 
   const weekInfo = useMemo(() => getISOWeekInfo(anchorDate), [anchorDate]);
   const weekKey = weekKeyFromDate(weekInfo.start);
-
-  /* -----------------------------------------
-     LOCALSTORAGE SAVE ONLY (NO LOAD)
-  ------------------------------------------ */
-  useEffect(() => {
-    localStorage.setItem("planner/staff", JSON.stringify(staff));
-  }, [staff]);
+  const weekIsoDate = toIsoDate(getMondayFromWeekKey(weekKey));
+  const currentWeek = weekRecords[weekKey] || normalizeWeekRecord(weekIsoDate);
+  const isWeekLocked = currentWeek.status === "locked";
 
   useEffect(() => {
-    localStorage.setItem("planner/schedule", JSON.stringify(schedule));
-  }, [schedule]);
+    let active = true;
 
-  useEffect(() => {
-    localStorage.setItem("planner/weekMeta", JSON.stringify(weekMeta));
-  }, [weekMeta]);
-
-  /* -----------------------------------------
-     AUTO‑INITIALIZE NEW WEEK (STAFF CARRY OVER, DAYS DO NOT)
-  ------------------------------------------ */
-  useEffect(() => {
-    if (schedule[weekKey]) return;
-
-    const prevMonday = addDays(weekInfo.start, -7);
-    const prevKey = weekKeyFromDate(prevMonday);
-
-    // Create empty schedule for the new week (days do not carry forward)
-    setSchedule(prev => {
-      if (!prev[weekKey]) {
-        return { ...prev, [weekKey]: {} };
-      }
-      return prev;
-    });
-
-    setWeekMeta(prev =>
-      prev[weekKey]
-        ? prev
-        : { ...prev, [weekKey]: { derivedFrom: prevKey, dirty: false } }
-    );
-  }, [weekKey]);
-
-  /* -----------------------------------------
-     FORWARD SYNC
-  ------------------------------------------ */
-  useEffect(() => {
-    const currMon = getMondayFromWeekKey(weekKey);
-    const nextMon = addDays(currMon, 7);
-    const nextKey = weekKeyFromDate(nextMon);
-    const meta = weekMeta[nextKey];
-
-    if (
-      schedule[nextKey] &&
-      meta &&
-      meta.derivedFrom === weekKey &&
-      meta.dirty === false
-    ) {
-      const curr = schedule[weekKey] || {};
-      const next = schedule[nextKey] || {};
-      if (JSON.stringify(curr) !== JSON.stringify(next)) {
-        setSchedule(prev => ({
-          ...prev,
-          [nextKey]: JSON.parse(JSON.stringify(curr))
-        }));
+    async function loadMessage() {
+      try {
+        const message = await fetchApiMessage();
+        if (!active) return;
+        setApiMessage(message || "");
+      } catch {
+        if (!active) return;
+        setApiMessage("");
       }
     }
-  }, [schedule, weekKey, weekMeta]);
+
+    loadMessage();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadStaff() {
+      setIsLoadingStaff(true);
+      try {
+        const loadedStaff = await fetchStaff();
+        if (!active) return;
+        setStaff(loadedStaff.map(normalizeStaffMember));
+        setErrorMessage("");
+      } catch (error) {
+        if (!active) return;
+        setErrorMessage(getErrorMessage(error, "Unable to load staff."));
+      } finally {
+        if (active) {
+          setIsLoadingStaff(false);
+        }
+      }
+    }
+
+    loadStaff();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   /* -----------------------------------------
      ROW FORMAT
@@ -148,20 +165,71 @@ export default function App() {
     }));
   };
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadWeekSchedule() {
+      setIsLoadingWeek(true);
+      try {
+        const payload = await fetchScheduleWeek(weekIsoDate);
+        if (!active) return;
+
+        const rows = payload.rows || [];
+        const nextWeekSchedule = rows.reduce((acc, row) => {
+          acc[row.staffId] = { ...emptyRow, ...row };
+          return acc;
+        }, {});
+
+        setSchedule(prev => ({
+          ...prev,
+          [weekKey]: nextWeekSchedule
+        }));
+        setWeekRecords(prev => ({
+          ...prev,
+          [weekKey]: normalizeWeekRecord(weekIsoDate, payload.week)
+        }));
+        setErrorMessage("");
+      } catch (error) {
+        if (!active) return;
+        setErrorMessage(getErrorMessage(error, "Unable to load week schedule."));
+      } finally {
+        if (active) {
+          setIsLoadingWeek(false);
+        }
+      }
+    }
+
+    loadWeekSchedule();
+
+    return () => {
+      active = false;
+    };
+  }, [weekIsoDate, weekKey]);
+
   /* -----------------------------------------
      UPDATE CELL
   ------------------------------------------ */
-  const updateField = (id, field, value) => {
-    setWeekMeta(prev => {
-      const meta = prev[weekKey];
-      if (!meta)
-        return { ...prev, [weekKey]: { derivedFrom: null, dirty: true } };
-      if (meta.dirty) return prev;
-      return { ...prev, [weekKey]: { ...meta, dirty: true } };
-    });
+  const updateField = async (id, field, value) => {
+    if (isWeekLocked) {
+      setErrorMessage("This week is locked. Unlock it before making schedule changes.");
+      return;
+    }
 
     const row = getRow(weekKey, id);
-    setRow(weekKey, id, { ...row, [field]: value });
+    if (row[field] === value) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const saved = await upsertScheduleEntry(weekIsoDate, id, { [field]: value });
+      setRow(weekKey, id, { ...emptyRow, ...saved });
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Unable to save schedule change."));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   /* -----------------------------------------
@@ -210,7 +278,53 @@ export default function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [rolesOpen, setRolesOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+
+  const lockCurrentWeek = async () => {
+    setIsSaving(true);
+    try {
+      const updated = await lockWeek(weekIsoDate);
+      setWeekRecords(prev => ({
+        ...prev,
+        [weekKey]: normalizeWeekRecord(weekIsoDate, updated)
+      }));
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Unable to lock this week."));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const unlockCurrentWeek = async () => {
+    setIsSaving(true);
+    try {
+      const updated = await unlockWeek(weekIsoDate);
+      setWeekRecords(prev => ({
+        ...prev,
+        [weekKey]: normalizeWeekRecord(weekIsoDate, updated)
+      }));
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Unable to unlock this week."));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveUserRoles = async ({ entraObjectId, roles }) => {
+    setIsSaving(true);
+    try {
+      await updateUserRoles(entraObjectId, roles);
+      setRolesOpen(false);
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Unable to update user roles."));
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   /* ============================================================
      PART 1 ENDS HERE — NEXT PART CONTAINS:
@@ -227,6 +341,30 @@ return (
        MAIN SCREEN‑ONLY PLANNER UI (NOT PRINTED)
     ======================================================= */}
     <div className="min-h-screen bg-gray-100 p-6 screen-only">
+
+      {apiMessage && (
+        <div className="mb-4 rounded-md border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-900">
+          API Message: {apiMessage}
+        </div>
+      )}
+
+      {(isLoadingStaff || isLoadingWeek) && (
+        <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
+          Loading planner data...
+        </div>
+      )}
+
+      {isWeekLocked && (
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          This week is locked. Schedule edits are disabled until the week is unlocked.
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-900">
+          {errorMessage}
+        </div>
+      )}
 
       {/* HEADER */}
       <div className="mb-4 flex items-center justify-between">
@@ -245,6 +383,13 @@ return (
             className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow"
           >
             Add Staff
+          </button>
+
+          <button
+            onClick={() => setRolesOpen(true)}
+            className="px-4 py-2 bg-slate-600 text-white rounded-lg shadow"
+          >
+            User Roles
           </button>
 
           <button
@@ -374,6 +519,22 @@ return (
             setAnchorDate(new Date(y, m - 1, d));
           }}
         />
+
+        <button
+          onClick={lockCurrentWeek}
+          disabled={isSaving || isWeekLocked}
+          className="px-3 py-1.5 rounded-md bg-amber-600 text-white disabled:opacity-50"
+        >
+          Lock Week
+        </button>
+
+        <button
+          onClick={unlockCurrentWeek}
+          disabled={isSaving || !isWeekLocked}
+          className="px-3 py-1.5 rounded-md bg-emerald-600 text-white disabled:opacity-50"
+        >
+          Unlock Week
+        </button>
       </div>
 {/* ROLE KEY */}
 <div className="mb-4 p-4 bg-white shadow rounded-lg flex flex-wrap items-center gap-6 text-sm">
@@ -454,6 +615,7 @@ return (
                       className="w-32 md:w-48 px-2 py-1 border rounded"
                       value={row.comment}
                       maxLength={40}
+                      disabled={isSaving || isWeekLocked}
                       onChange={(e) =>
                         updateField(s.id, "comment", e.target.value)
                       }
@@ -467,6 +629,7 @@ return (
                         <select
                           className="w-20 px-2 py-1 border rounded"
                           value={row[d + "AM"]}
+                          disabled={isSaving || isWeekLocked}
                           onChange={(e) =>
                             updateField(s.id, d + "AM", e.target.value)
                           }
@@ -481,6 +644,7 @@ return (
                         <select
                           className="w-20 px-2 py-1 border rounded"
                           value={row[d + "PM"]}
+                          disabled={isSaving || isWeekLocked}
                           onChange={(e) =>
                             updateField(s.id, d + "PM", e.target.value)
                           }
@@ -637,18 +801,27 @@ return (
 {addOpen && (
         <AddStaffModal
           close={() => setAddOpen(false)}
-          add={(name, number, roles) => {
+          add={async (name, number, roles) => {
             if (!name.trim() || !number.trim()) return;
-            setStaff(prev => [
-              ...prev,
-              {
-                id: uid(),
-                name,
-                number,
-                roles
+
+            setIsSaving(true);
+            try {
+              const created = await createStaffMember({ name, number });
+              if (!created) {
+                throw new Error("Unable to create staff.");
               }
-            ]);
-            setAddOpen(false);
+
+              setStaff(prev => [
+                ...prev,
+                normalizeStaffMember({ ...created, roles })
+              ]);
+              setAddOpen(false);
+              setErrorMessage("");
+            } catch (error) {
+              setErrorMessage(getErrorMessage(error, "Unable to create staff."));
+            } finally {
+              setIsSaving(false);
+            }
           }}
         />
       )}
@@ -658,26 +831,31 @@ return (
           close={() => setEditOpen(false)}
           staff={editTarget}
           setStaffData={setEditTarget}
-          save={(updated) => {
-            setStaff(prev =>
-              prev.map(p => (p.id === updated.id ? updated : p))
-            );
-            setEditOpen(false);
-          }}
-          deleteStaff={(id) => {
-            if (!window.confirm("Delete staff?")) return;
-
-            setStaff(prev => prev.filter(s => s.id !== id));
-
-            setSchedule(prev => {
-              const cp = { ...prev };
-              Object.keys(cp).forEach(wk => {
-                if (cp[wk][id]) delete cp[wk][id];
+          save={async (updated) => {
+            setIsSaving(true);
+            try {
+              const saved = await updateStaffMember(updated.id, {
+                name: updated.name,
+                number: updated.number
               });
-              return cp;
-            });
 
-            setEditOpen(false);
+              if (!saved) {
+                throw new Error("Unable to update staff.");
+              }
+
+              setStaff(prev =>
+                prev.map(p => (p.id === updated.id ? normalizeStaffMember({ ...saved, roles: updated.roles }) : p))
+              );
+              setEditOpen(false);
+              setErrorMessage("");
+            } catch (error) {
+              setErrorMessage(getErrorMessage(error, "Unable to update staff."));
+            } finally {
+              setIsSaving(false);
+            }
+          }}
+          deleteStaff={() => {
+            window.alert("Delete staff is not available in API v1 yet.");
           }}
         />
       )}
@@ -688,6 +866,14 @@ return (
           printPDF={printPDF}
           printOrientation={printOrientation}
           setPrintOrientation={setPrintOrientation}
+        />
+      )}
+
+      {rolesOpen && (
+        <UserRolesModal
+          close={() => setRolesOpen(false)}
+          save={saveUserRoles}
+          disabled={isSaving}
         />
       )}
 
@@ -1026,16 +1212,17 @@ function ColourDot({ colour }) {
    UTILITIES
 ====================================== */
 
-function uid() {
-  return crypto.randomUUID
-    ? crypto.randomUUID()
-    : "id_" + Math.random().toString(36).substring(2);
-}
-
 function addDays(date, n) {
   const d = new Date(date);
   d.setDate(d.getDate() + n);
   return d;
+}
+
+function toIsoDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function formatDate(dt) {
@@ -1105,4 +1292,79 @@ function getMondayFromWeekKey(weekKey) {
   mon.setDate(mon1.getDate() + (week - 1) * 7);
 
   return mon;
+}
+
+function UserRolesModal({ close, save, disabled }) {
+  const [entraObjectId, setEntraObjectId] = useState("");
+  const [roles, setRoles] = useState({
+    viewer: false,
+    planner: true,
+    admin: false
+  });
+
+  const selectedRoles = [];
+  if (roles.viewer) selectedRoles.push("viewer");
+  if (roles.planner) selectedRoles.push("planner");
+  if (roles.admin) selectedRoles.push("admin");
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white/90 rounded-xl shadow-xl p-6 w-full max-w-md">
+        <h2 className="text-xl font-bold mb-4">Update User Roles</h2>
+
+        <div className="space-y-3">
+          <input
+            className="h-10 px-3 w-full rounded-md border"
+            placeholder="Entra Object ID"
+            value={entraObjectId}
+            onChange={(e) => setEntraObjectId(e.target.value)}
+          />
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={roles.viewer}
+              onChange={(e) => setRoles({ ...roles, viewer: e.target.checked })}
+            />
+            viewer
+          </label>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={roles.planner}
+              onChange={(e) => setRoles({ ...roles, planner: e.target.checked })}
+            />
+            planner
+          </label>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={roles.admin}
+              onChange={(e) => setRoles({ ...roles, admin: e.target.checked })}
+            />
+            admin
+          </label>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={close}
+            className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+
+          <button
+            disabled={disabled || !entraObjectId.trim() || selectedRoles.length === 0}
+            onClick={() => save({ entraObjectId: entraObjectId.trim(), roles: selectedRoles })}
+            className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            Save Roles
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
