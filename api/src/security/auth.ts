@@ -17,6 +17,26 @@ interface TokenValidationFailure {
 
 const FALLBACK_ISSUER_BASE = "https://login.microsoftonline.com";
 
+function isLocalBypassContext() {
+  return (
+    process.env.NODE_ENV === "test" ||
+    Boolean(process.env.AzureWebJobsScriptRoot) ||
+    Boolean(process.env.FUNCTIONS_CORE_TOOLS_ENVIRONMENT)
+  );
+}
+
+function isDevBypassEnabled() {
+  if (process.env.AUTH_DEV_BYPASS !== "true") {
+    return false;
+  }
+
+  if (process.env.WEBSITE_INSTANCE_ID) {
+    return false;
+  }
+
+  return isLocalBypassContext();
+}
+
 function getBearerToken(req: HttpRequest): string | null {
   const auth = req.headers.get("authorization");
   if (!auth || !auth.toLowerCase().startsWith("bearer ")) {
@@ -135,7 +155,7 @@ export async function validateAccessToken(req: HttpRequest): Promise<TokenValida
     };
   }
 
-  if (process.env.AUTH_DEV_BYPASS === "true") {
+  if (isDevBypassEnabled()) {
     return validateWithBypass(req, token);
   }
 
