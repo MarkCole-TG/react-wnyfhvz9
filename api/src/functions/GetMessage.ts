@@ -1,5 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { authorizeRequest } from "../security/authorize";
+import { fail } from "../http/response";
 
 export async function GetMessage(
   req: HttpRequest,
@@ -7,11 +8,8 @@ export async function GetMessage(
 ): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["viewer", "planner", "admin"]);
   if (!auth.ok) {
-    const failure = auth as unknown as { status: number; body: object };
-    return {
-      status: failure.status,
-      jsonBody: failure.body,
-    };
+    const failure = auth as unknown as { status: number; body: { error: { code: string; message: string; correlationId: string } } };
+    return fail(failure.status, failure.body.error.code, failure.body.error.message, failure.body.error.correlationId);
   }
 
   return {
