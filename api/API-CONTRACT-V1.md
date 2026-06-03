@@ -50,6 +50,7 @@ This document defines the v1 contract for the backend API, including authenticat
 - PUT /api/v1/schedule/{week}/{staffId}
 	- Purpose: create or update a staff schedule row.
 	- Roles: planner, admin.
+	- Concurrency: when updating an existing row, request body must include current `updatedAt`.
 
 - GET /api/v1/staff
 	- Purpose: list staff.
@@ -62,10 +63,12 @@ This document defines the v1 contract for the backend API, including authenticat
 - PATCH /api/v1/staff/{staffId}
 	- Purpose: update staff record.
 	- Roles: planner, admin.
+	- Concurrency: request body must include current `updatedAt`.
 
 - DELETE /api/v1/staff/{staffId}
 	- Purpose: delete staff record.
 	- Roles: planner, admin.
+	- Concurrency: query parameter `updatedAt` is required.
 
 - POST /api/v1/weeks/{week}/lock
 	- Purpose: lock week against edits.

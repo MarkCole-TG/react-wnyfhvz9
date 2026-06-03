@@ -32,6 +32,14 @@ export async function UpsertSchedule(req: HttpRequest, context: InvocationContex
       return fail(400, "invalid_json", "Request body must be valid JSON.", context.invocationId);
     }
 
+    if (error instanceof Error && error.message === "missing_updated_at") {
+      return fail(409, "missing_updated_at", "The current row updatedAt value is required for this update.", context.invocationId);
+    }
+
+    if (error instanceof Error && error.message === "version_mismatch") {
+      return fail(409, "version_mismatch", "The schedule row was changed by another request. Refresh and retry.", context.invocationId);
+    }
+
     if (error instanceof Error && error.message === "week_locked") {
       return fail(409, "week_locked", "The week is locked.", context.invocationId);
     }

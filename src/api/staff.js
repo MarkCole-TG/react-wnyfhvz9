@@ -22,16 +22,18 @@ export async function updateStaffMember(staffId, input) {
     method: "PATCH",
     body: {
       name: input.name,
-      number: input.number
+      number: input.number,
+      updatedAt: input.updatedAt
     }
   });
 
   return payload?.staff;
 }
 
-export async function deleteStaffMember(staffId) {
+export async function deleteStaffMember(staffId, updatedAt) {
   await apiRequest(`/v1/staff/${encodeURIComponent(staffId)}`, {
-    method: "DELETE"
+    method: "DELETE",
+    query: { updatedAt }
   });
 
   return true;

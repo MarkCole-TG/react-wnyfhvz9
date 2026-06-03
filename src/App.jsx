@@ -222,7 +222,7 @@ export default function App() {
 
     setIsSaving(true);
     try {
-      const saved = await upsertScheduleEntry(weekIsoDate, id, { [field]: value });
+      const saved = await upsertScheduleEntry(weekIsoDate, id, { [field]: value }, row.updatedAt);
       setRow(weekKey, id, { ...emptyRow, ...saved });
       setErrorMessage("");
     } catch (error) {
@@ -855,7 +855,8 @@ return (
             try {
               const saved = await updateStaffMember(updated.id, {
                 name: updated.name,
-                number: updated.number
+                number: updated.number,
+                updatedAt: updated.updatedAt
               });
 
               if (!saved) {
@@ -873,21 +874,21 @@ return (
               setIsSaving(false);
             }
           }}
-          deleteStaff={async (id) => {
+          deleteStaff={async (member) => {
             if (!window.confirm("Delete staff?")) {
               return;
             }
 
             setIsSaving(true);
             try {
-              await deleteStaffMember(id);
-              setStaff(prev => prev.filter((member) => member.id !== id));
+              await deleteStaffMember(member.id, member.updatedAt);
+              setStaff(prev => prev.filter((item) => item.id !== member.id));
               setSchedule(prev => {
                 const next = { ...prev };
                 for (const week of Object.keys(next)) {
-                  if (next[week]?.[id]) {
+                  if (next[week]?.[member.id]) {
                     next[week] = { ...next[week] };
-                    delete next[week][id];
+                    delete next[week][member.id];
                   }
                 }
                 return next;
@@ -1141,7 +1142,7 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
         <div className="mt-6 flex justify-between">
 
           <button
-            onClick={() => deleteStaff(staff.id)}
+            onClick={() => deleteStaff(staff)}
             className="px-4 py-2 rounded-lg bg-red-200 text-red-800 hover:bg-red-300"
           >
             Delete Staff

@@ -27,9 +27,22 @@ export async function UpdateStaff(req: HttpRequest, context: InvocationContext):
     return fail(500, "server_error", "Unable to update staff.", context.invocationId);
   }
 
-  const staff = updateStaff(staffId, body);
-  if (!staff) {
-    return fail(404, "staff_not_found", "Staff record was not found.", context.invocationId);
+  let staff;
+  try {
+    staff = updateStaff(staffId, body);
+    if (!staff) {
+      return fail(404, "staff_not_found", "Staff record was not found.", context.invocationId);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message === "missing_updated_at") {
+      return fail(409, "missing_updated_at", "The current staff updatedAt value is required for this update.", context.invocationId);
+    }
+
+    if (error instanceof Error && error.message === "version_mismatch") {
+      return fail(409, "version_mismatch", "The staff record was changed by another request. Refresh and retry.", context.invocationId);
+    }
+
+    return fail(500, "server_error", "Unable to update staff.", context.invocationId);
   }
 
   return ok({ staff });
