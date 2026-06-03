@@ -207,7 +207,7 @@ export default function App() {
   }, [weekIsoDate, weekKey]);
 
   /* -----------------------------------------
-     UPDATE CELL
+     UPDATE CELL (OPTIMISTIC)
   ------------------------------------------ */
   const updateField = async (id, field, value) => {
     if (isWeekLocked) {
@@ -220,12 +220,21 @@ export default function App() {
       return;
     }
 
+    const originalRow = { ...row }; // Save for rollback on conflict
+    const optimisticRow = { ...row, [field]: value }; // Immediate update
+
+    // Update local state optimistically
+    setRow(weekKey, id, optimisticRow);
+    setErrorMessage("");
+
     setIsSaving(true);
     try {
       const saved = await upsertScheduleEntry(weekIsoDate, id, { [field]: value }, row.updatedAt);
+      // Update with server response (includes new updatedAt for concurrency)
       setRow(weekKey, id, { ...emptyRow, ...saved });
-      setErrorMessage("");
     } catch (error) {
+      // Rollback to original row on failure
+      setRow(weekKey, id, originalRow);
       setErrorMessage(getErrorMessage(error, "Unable to save schedule change."));
     } finally {
       setIsSaving(false);
