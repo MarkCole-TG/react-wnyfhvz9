@@ -3,7 +3,9 @@ const DEV_BYPASS_TENANT_ID = "dev";
 const DEV_BYPASS_BEARER = "dev-bypass-token";
 
 function getMode() {
-  return import.meta.env.VITE_API_AUTH_MODE || "dev-bypass";
+   const configured = import.meta.env.VITE_API_AUTH_MODE;
+   if (configured) return configured;
+   return import.meta.env.DEV ? "dev-bypass" : "bearer";
 }
 
 function getDevBypassHeaders() {
