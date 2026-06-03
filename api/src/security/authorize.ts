@@ -29,13 +29,25 @@ export async function authorizeRequest(req: HttpRequest, correlationId: string, 
   }
 
   const user = findUserByEntraObjectId(tokenValidation.principal.entraObjectId);
-  if (!user || !user.isActive) {
+  if (!user) {
     return {
       ok: false,
       status: 403,
       body: errorBody(
         "user_not_mapped",
         "Authenticated user is not mapped in AppUsers/UserRoles.",
+        correlationId
+      ),
+    };
+  }
+
+  if (!user.isActive) {
+    return {
+      ok: false,
+      status: 403,
+      body: errorBody(
+        "user_inactive",
+        "Authenticated user account is inactive.",
         correlationId
       ),
     };
