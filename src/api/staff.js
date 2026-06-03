@@ -28,3 +28,11 @@ export async function updateStaffMember(staffId, input) {
 
   return payload?.staff;
 }
+
+export async function deleteStaffMember(staffId) {
+  await apiRequest(`/v1/staff/${encodeURIComponent(staffId)}`, {
+    method: "DELETE"
+  });
+
+  return true;
+}
