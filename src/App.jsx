@@ -276,6 +276,7 @@ export default function App() {
      MODAL STATES
   ------------------------------------------ */
   const [addOpen, setAddOpen] = useState(false);
+  const [addStaffError, setAddStaffError] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [rolesOpen, setRolesOpen] = useState(false);
@@ -800,9 +801,26 @@ return (
 
 {addOpen && (
         <AddStaffModal
-          close={() => setAddOpen(false)}
+          close={() => {
+            setAddOpen(false);
+            setAddStaffError("");
+          }}
+          errorMessage={addStaffError}
           add={async (name, number, roles) => {
-            if (!name.trim() || !number.trim()) return;
+            const normalizedName = name.trim().toLowerCase();
+            const normalizedNumber = number.trim();
+            if (!normalizedName || !normalizedNumber) return;
+
+            const duplicate = staff.some((member) => {
+              const sameName = member.name.trim().toLowerCase() === normalizedName;
+              const sameNumber = member.number.trim() === normalizedNumber;
+              return sameName || sameNumber;
+            });
+
+            if (duplicate) {
+              setAddStaffError("A staff member with the same name or number already exists.");
+              return;
+            }
 
             setIsSaving(true);
             try {
@@ -816,9 +834,10 @@ return (
                 normalizeStaffMember({ ...created, roles })
               ]);
               setAddOpen(false);
+              setAddStaffError("");
               setErrorMessage("");
             } catch (error) {
-              setErrorMessage(getErrorMessage(error, "Unable to create staff."));
+              setAddStaffError(getErrorMessage(error, "Unable to create staff."));
             } finally {
               setIsSaving(false);
             }
@@ -886,7 +905,7 @@ return (
    COMPONENTS — ADD STAFF MODAL
 ====================================== */
 
-function AddStaffModal({ close, add }) {
+function AddStaffModal({ close, add, errorMessage }) {
   const [name, setName] = useState("");
   const [number, setNumber] = useState("");
   const [roles, setRoles] = useState({
@@ -902,6 +921,12 @@ function AddStaffModal({ close, add }) {
       <div className="bg-white/90 rounded-xl shadow-xl p-6 w-full max-w-md">
 
         <h2 className="text-xl font-bold mb-4">Add New Staff</h2>
+
+        {errorMessage && (
+          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            {errorMessage}
+          </div>
+        )}
 
         <div className="space-y-3">
 
