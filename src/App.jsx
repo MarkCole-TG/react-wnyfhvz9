@@ -815,6 +815,7 @@ return (
             setAddStaffError("");
           }}
           errorMessage={addStaffError}
+          isSaving={isSaving}
           add={async (name, number, roles) => {
             const normalizedName = name.trim().toLowerCase();
             const normalizedNumber = number.trim();
@@ -859,6 +860,7 @@ return (
           close={() => setEditOpen(false)}
           staff={editTarget}
           setStaffData={setEditTarget}
+          isSaving={isSaving}
           save={async (updated) => {
             setIsSaving(true);
             try {
@@ -940,7 +942,7 @@ return (
    COMPONENTS — ADD STAFF MODAL
 ====================================== */
 
-function AddStaffModal({ close, add, errorMessage }) {
+function AddStaffModal({ close, add, errorMessage, isSaving }) {
   const [name, setName] = useState("");
   const [number, setNumber] = useState("");
   const [roles, setRoles] = useState({
@@ -966,18 +968,20 @@ function AddStaffModal({ close, add, errorMessage }) {
         <div className="space-y-3">
 
           <input
-            className="h-10 px-3 w-full rounded-md border"
+            className="h-10 px-3 w-full rounded-md border disabled:bg-gray-100 disabled:cursor-not-allowed"
             placeholder="Full Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={isSaving}
           />
 
           <input
-            className="h-10 px-3 w-full rounded-md border"
+            className="h-10 px-3 w-full rounded-md border disabled:bg-gray-100 disabled:cursor-not-allowed"
             placeholder="Staff Number (4 digits max)"
             value={number}
             maxLength={4}
             onChange={(e) => setNumber(e.target.value.slice(0, 4))}
+            disabled={isSaving}
           />
 
           <div className="flex gap-4 flex-wrap text-gray-800">
@@ -987,6 +991,7 @@ function AddStaffModal({ close, add, errorMessage }) {
               colour="bg-yellow-400"
               value={roles.mhfa}
               onChange={(v) => setRoles({ ...roles, mhfa: v })}
+              disabled={isSaving}
             />
 
             <RoleCheckbox
@@ -994,6 +999,7 @@ function AddStaffModal({ close, add, errorMessage }) {
               colour="bg-red-500"
               value={roles.fire}
               onChange={(v) => setRoles({ ...roles, fire: v })}
+              disabled={isSaving}
             />
 
             <RoleCheckbox
@@ -1001,6 +1007,7 @@ function AddStaffModal({ close, add, errorMessage }) {
               colour="bg-green-500"
               value={roles.first}
               onChange={(v) => setRoles({ ...roles, first: v })}
+              disabled={isSaving}
             />
 
             <RoleCheckbox
@@ -1008,6 +1015,7 @@ function AddStaffModal({ close, add, errorMessage }) {
               colour="bg-purple-500"
               value={roles.director}
               onChange={(v) => setRoles({ ...roles, director: v })}
+              disabled={isSaving}
             />
 
             <label className="flex items-center gap-2">
@@ -1017,6 +1025,7 @@ function AddStaffModal({ close, add, errorMessage }) {
                 onChange={(e) =>
                   setRoles({ ...roles, guest: e.target.checked })
                 }
+                disabled={isSaving}
               />
               Guest (G)
             </label>
@@ -1029,14 +1038,16 @@ function AddStaffModal({ close, add, errorMessage }) {
 
           <button
             onClick={close}
-            className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
+            className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
+            disabled={isSaving}
           >
             Cancel
           </button>
 
           <button
             onClick={() => add(name, number, roles)}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed"
+            disabled={isSaving}
           >
             Add
           </button>
@@ -1053,7 +1064,7 @@ function AddStaffModal({ close, add, errorMessage }) {
    COMPONENTS — EDIT STAFF MODAL
 ====================================== */
 
-function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
+function EditStaffModal({ close, staff, setStaffData, save, deleteStaff, isSaving }) {
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-white/90 rounded-xl shadow-xl p-6 w-full max-w-md">
@@ -1063,22 +1074,24 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
         <div className="space-y-3">
 
           <input
-            className="h-10 px-3 w-full rounded-md border"
+            className="h-10 px-3 w-full rounded-md border disabled:bg-gray-100 disabled:cursor-not-allowed"
             placeholder="Full Name"
             value={staff.name}
             onChange={(e) =>
               setStaffData({ ...staff, name: e.target.value })
             }
+            disabled={isSaving}
           />
 
           <input
-            className="h-10 px-3 w-full rounded-md border"
+            className="h-10 px-3 w-full rounded-md border disabled:bg-gray-100 disabled:cursor-not-allowed"
             placeholder="Staff Number (4 digits max)"
             value={staff.number}
             maxLength={4}
             onChange={(e) =>
               setStaffData({ ...staff, number: e.target.value.slice(0, 4) })
             }
+            disabled={isSaving}
           />
 
           <div className="flex gap-4 flex-wrap text-gray-800">
@@ -1093,6 +1106,7 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
                   roles: { ...staff.roles, mhfa: v }
                 })
               }
+              disabled={isSaving}
             />
 
             <RoleCheckbox
@@ -1105,6 +1119,7 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
                   roles: { ...staff.roles, fire: v }
                 })
               }
+              disabled={isSaving}
             />
 
             <RoleCheckbox
@@ -1117,6 +1132,7 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
                   roles: { ...staff.roles, first: v }
                 })
               }
+              disabled={isSaving}
             />
 
             <RoleCheckbox
@@ -1129,6 +1145,7 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
                   roles: { ...staff.roles, director: v }
                 })
               }
+              disabled={isSaving}
             />
 
             <label className="flex items-center gap-2">
@@ -1141,6 +1158,7 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
                     roles: { ...staff.roles, guest: e.target.checked }
                   })
                 }
+                disabled={isSaving}
               />
               Guest (G)
             </label>
@@ -1153,7 +1171,8 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
 
           <button
             onClick={() => deleteStaff(staff)}
-            className="px-4 py-2 rounded-lg bg-red-200 text-red-800 hover:bg-red-300"
+            className="px-4 py-2 rounded-lg bg-red-200 text-red-800 hover:bg-red-300 disabled:bg-red-100 disabled:text-red-600 disabled:cursor-not-allowed"
+            disabled={isSaving}
           >
             Delete Staff
           </button>
@@ -1161,14 +1180,16 @@ function EditStaffModal({ close, staff, setStaffData, save, deleteStaff }) {
           <div className="flex gap-3">
             <button
               onClick={close}
-              className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
+              className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
+              disabled={isSaving}
             >
               Cancel
             </button>
 
             <button
               onClick={() => save(staff)}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed"
+              disabled={isSaving}
             >
               Save
             </button>
@@ -1247,7 +1268,7 @@ function ExportModal({ close, printPDF, printOrientation, setPrintOrientation })
    COMPONENTS — ROLE CHECKBOX / DOT
 ====================================== */
 
-function RoleCheckbox({ label, colour, value, onChange }) {
+function RoleCheckbox({ label, colour, value, onChange, disabled }) {
   return (
     <label className="flex items-center gap-2">
       <input
