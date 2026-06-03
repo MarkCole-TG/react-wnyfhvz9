@@ -71,8 +71,8 @@ This document defines the v1 contract for the backend API, including authenticat
 	- Purpose: unlock week.
 	- Roles: admin.
 
-- PUT /api/v1/users/{userId}/roles
-	- Purpose: replace user role assignments.
+- PUT /api/v1/users/{entraObjectId}/roles
+	- Purpose: replace user role assignments for the specified Entra Object ID.
 	- Roles: admin.
 
 ## Standard Response Shapes
