@@ -32,7 +32,7 @@ export async function UpdateUserRoles(req: HttpRequest, context: InvocationConte
     return fail(500, "server_error", "Unable to update user roles.", context.invocationId);
   }
 
-  const entraObjectId = (body.entraObjectId ?? req.params.userId ?? "").trim();
+  const entraObjectId = (body.entraObjectId ?? req.params.entraObjectId ?? "").trim();
   if (!entraObjectId) {
     return fail(400, "missing_user", "An Entra object id is required.", context.invocationId);
   }
@@ -49,6 +49,6 @@ export async function UpdateUserRoles(req: HttpRequest, context: InvocationConte
 app.http("UpdateUserRoles", {
   methods: ["PUT"],
   authLevel: "anonymous",
-  route: "v1/users/{userId}/roles",
+  route: "v1/users/{entraObjectId}/roles",
   handler: UpdateUserRoles,
 });

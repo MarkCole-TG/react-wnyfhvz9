@@ -220,7 +220,7 @@ test("admin can lock a week and update roles for another user", async () => {
             "x-dev-entra-object-id": "oid-admin",
           },
           params: {
-            userId: "oid-viewer",
+            entraObjectId: "oid-viewer",
           },
           body: {
             roles: ["planner"],
