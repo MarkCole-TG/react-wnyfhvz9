@@ -78,6 +78,13 @@ test("planner can create staff and save a schedule row", async () => {
             name: "Jordan Miles",
             number: "1001",
             title: "Planner",
+            roles: {
+              mhfa: true,
+              fire: false,
+              first: false,
+              director: false,
+              guest: false,
+            },
           },
         }),
         context

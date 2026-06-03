@@ -10,7 +10,8 @@ export async function createStaffMember(input) {
     method: "POST",
     body: {
       name: input.name,
-      number: input.number
+      number: input.number,
+      roles: input.roles
     }
   });
 
@@ -23,6 +24,7 @@ export async function updateStaffMember(staffId, input) {
     body: {
       name: input.name,
       number: input.number,
+      roles: input.roles,
       updatedAt: input.updatedAt
     }
   });

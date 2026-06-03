@@ -21,6 +21,13 @@ export interface StaffCreatePayload {
   number?: string;
   title?: string;
   active?: boolean;
+  roles?: {
+    mhfa?: boolean;
+    fire?: boolean;
+    first?: boolean;
+    director?: boolean;
+    guest?: boolean;
+  };
 }
 
 export interface StaffUpdatePayload {
@@ -28,6 +35,13 @@ export interface StaffUpdatePayload {
   number?: string;
   title?: string;
   active?: boolean;
+  roles?: {
+    mhfa?: boolean;
+    fire?: boolean;
+    first?: boolean;
+    director?: boolean;
+    guest?: boolean;
+  };
   updatedAt?: string;
 }
 
@@ -175,6 +189,13 @@ export function createStaff(payload: StaffCreatePayload) {
     number: normalizedNumber,
     title: payload.title?.trim() || undefined,
     active: payload.active ?? true,
+    roles: payload.roles || {
+      mhfa: false,
+      fire: false,
+      first: false,
+      director: false,
+      guest: false,
+    },
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -208,6 +229,15 @@ export function updateStaff(staffId: string, payload: StaffUpdatePayload) {
   if (payload.number !== undefined) staff.number = payload.number.trim();
   if (payload.title !== undefined) staff.title = payload.title.trim() || undefined;
   if (payload.active !== undefined) staff.active = payload.active;
+  if (payload.roles !== undefined) {
+    staff.roles = {
+      mhfa: payload.roles.mhfa ?? staff.roles?.mhfa ?? false,
+      fire: payload.roles.fire ?? staff.roles?.fire ?? false,
+      first: payload.roles.first ?? staff.roles?.first ?? false,
+      director: payload.roles.director ?? staff.roles?.director ?? false,
+      guest: payload.roles.guest ?? staff.roles?.guest ?? false,
+    };
+  }
   staff.updatedAt = nowIso();
   return clone(staff);
 }
