@@ -824,14 +824,14 @@ return (
 
             setIsSaving(true);
             try {
-              const created = await createStaffMember({ name, number });
+              const created = await createStaffMember({ name, number, roles });
               if (!created) {
                 throw new Error("Unable to create staff.");
               }
 
               setStaff(prev => [
                 ...prev,
-                normalizeStaffMember({ ...created, roles })
+                normalizeStaffMember(created)
               ]);
               setAddOpen(false);
               setAddStaffError("");
@@ -856,6 +856,7 @@ return (
               const saved = await updateStaffMember(updated.id, {
                 name: updated.name,
                 number: updated.number,
+                roles: updated.roles,
                 updatedAt: updated.updatedAt
               });
 
@@ -864,7 +865,7 @@ return (
               }
 
               setStaff(prev =>
-                prev.map(p => (p.id === updated.id ? normalizeStaffMember({ ...saved, roles: updated.roles }) : p))
+                prev.map(p => (p.id === updated.id ? normalizeStaffMember(saved) : p))
               );
               setEditOpen(false);
               setErrorMessage("");

@@ -6,6 +6,13 @@ export interface StaffMember {
   number: string;
   title?: string;
   active: boolean;
+  roles?: {
+    mhfa?: boolean;
+    fire?: boolean;
+    first?: boolean;
+    director?: boolean;
+    guest?: boolean;
+  };
   createdAt: string;
   updatedAt: string;
 }
