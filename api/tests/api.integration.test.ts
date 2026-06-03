@@ -5,6 +5,7 @@ import { DeleteStaff } from "../src/functions/DeleteStaff";
 import { GetSchedule } from "../src/functions/GetSchedule";
 import { GetStaff } from "../src/functions/GetStaff";
 import { LockWeek } from "../src/functions/LockWeek";
+import { UpdateStaff } from "../src/functions/UpdateStaff";
 import { UpdateUserRoles } from "../src/functions/UpdateUserRoles";
 import { UpsertSchedule } from "../src/functions/UpsertSchedule";
 import { resetAppState } from "../src/data/store";
@@ -146,6 +147,48 @@ test("planner can create staff and save a schedule row", async () => {
       assert.equal(readBody.week.week, "2026-06-01");
       assert.equal(readBody.rows.length, 1);
       assert.equal(readBody.rows[0].staffId, createdStaff.id);
+
+      const staleScheduleWrite = await UpsertSchedule(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-planner",
+          },
+          params: {
+            week: "2026-06-01",
+            staffId: createdStaff.id,
+          },
+          body: {
+            TueAM: "Office",
+            updatedAt: "2000-01-01T00:00:00.000Z",
+          },
+        }),
+        context
+      );
+
+      assert.equal(staleScheduleWrite.status, 409);
+      assert.equal((staleScheduleWrite.jsonBody as any).error.code, "version_mismatch");
+
+      const latestRow = readBody.rows[0];
+      const freshScheduleWrite = await UpsertSchedule(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-planner",
+          },
+          params: {
+            week: "2026-06-01",
+            staffId: createdStaff.id,
+          },
+          body: {
+            TueAM: "Office",
+            updatedAt: latestRow.updatedAt,
+          },
+        }),
+        context
+      );
+
+      assert.equal(freshScheduleWrite.status, 200);
     }
   );
 });
@@ -249,6 +292,28 @@ test("admin can lock a week and update roles for another user", async () => {
 
       assert.equal(promotedCreate.status, 201);
       assert.equal((promotedCreate.jsonBody as any).staff.name, "Promoted User");
+
+      const staffToUpdate = (promotedCreate.jsonBody as any).staff;
+      const updateResponse = await UpdateStaff(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-admin",
+          },
+          params: {
+            staffId: staffToUpdate.id,
+          },
+          body: {
+            name: "Promoted User Updated",
+            number: "3001",
+            updatedAt: "2000-01-01T00:00:00.000Z",
+          },
+        }),
+        context
+      );
+
+      assert.equal(updateResponse.status, 409);
+      assert.equal((updateResponse.jsonBody as any).error.code, "version_mismatch");
     }
   );
 });
@@ -328,6 +393,7 @@ test("planner can delete staff and remove schedule rows", async () => {
       );
 
       const staffId = (createResponse.jsonBody as any).staff.id;
+      const staffUpdatedAt = (createResponse.jsonBody as any).staff.updatedAt;
 
       const upsertResponse = await UpsertSchedule(
         request({
@@ -356,6 +422,9 @@ test("planner can delete staff and remove schedule rows", async () => {
           },
           params: {
             staffId,
+          },
+          query: {
+            updatedAt: staffUpdatedAt,
           },
         }),
         context
@@ -391,6 +460,24 @@ test("planner can delete staff and remove schedule rows", async () => {
 
       assert.equal(scheduleReadResponse.status, 200);
       assert.equal((scheduleReadResponse.jsonBody as any).rows.length, 0);
+
+      const staleDeleteResponse = await DeleteStaff(
+        request({
+          headers: {
+            authorization: "Bearer test-token",
+            "x-dev-entra-object-id": "oid-planner",
+          },
+          params: {
+            staffId,
+          },
+          query: {
+            updatedAt: staffUpdatedAt,
+          },
+        }),
+        context
+      );
+
+      assert.equal(staleDeleteResponse.status, 404);
     }
   );
 });

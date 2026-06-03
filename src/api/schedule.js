@@ -11,10 +11,13 @@ export async function fetchScheduleWeek(weekIsoDate) {
   };
 }
 
-export async function upsertScheduleEntry(weekIsoDate, staffId, rowPatch) {
+export async function upsertScheduleEntry(weekIsoDate, staffId, rowPatch, updatedAt) {
   const payload = await apiRequest(`/v1/schedule/${encodeURIComponent(weekIsoDate)}/${encodeURIComponent(staffId)}`, {
     method: "PUT",
-    body: rowPatch
+    body: {
+      ...rowPatch,
+      updatedAt
+    }
   });
 
   return payload?.row;

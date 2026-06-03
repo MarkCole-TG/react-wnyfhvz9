@@ -13,6 +13,7 @@ export interface SchedulePayload {
   FriAM?: string;
   FriPM?: string;
   comment?: string;
+  updatedAt?: string;
 }
 
 export interface StaffCreatePayload {
@@ -27,6 +28,7 @@ export interface StaffUpdatePayload {
   number?: string;
   title?: string;
   active?: boolean;
+  updatedAt?: string;
 }
 
 export interface RoleUpdatePayload {
@@ -124,6 +126,17 @@ function assertWeekOpen(week: string) {
   }
 }
 
+function assertUpdatedAtPrecondition(currentUpdatedAt: string, expectedUpdatedAt?: string) {
+  const expected = (expectedUpdatedAt ?? "").trim();
+  if (!expected) {
+    throw new Error("missing_updated_at");
+  }
+
+  if (currentUpdatedAt !== expected) {
+    throw new Error("version_mismatch");
+  }
+}
+
 export function listStaff() {
   return clone(state.staff);
 }
@@ -132,11 +145,13 @@ export function getStaff(staffId: string) {
   return state.staff.find((item) => item.id === staffId) ?? null;
 }
 
-export function deleteStaff(staffId: string) {
+export function deleteStaff(staffId: string, expectedUpdatedAt?: string) {
   const index = state.staff.findIndex((item) => item.id === staffId);
   if (index < 0) {
     return false;
   }
+
+  assertUpdatedAtPrecondition(state.staff[index].updatedAt, expectedUpdatedAt);
 
   state.staff.splice(index, 1);
 
@@ -187,6 +202,8 @@ export function updateStaff(staffId: string, payload: StaffUpdatePayload) {
     return null;
   }
 
+  assertUpdatedAtPrecondition(staff.updatedAt, payload.updatedAt);
+
   if (payload.name !== undefined) staff.name = payload.name.trim();
   if (payload.number !== undefined) staff.number = payload.number.trim();
   if (payload.title !== undefined) staff.title = payload.title.trim() || undefined;
@@ -214,6 +231,10 @@ export function upsertScheduleRow(week: string, staffId: string, payload: Schedu
   const weekSchedule = ensureWeekSchedule(week);
   const timestamp = nowIso();
   const existing = weekSchedule[staffId];
+  if (existing) {
+    assertUpdatedAtPrecondition(existing.updatedAt, payload.updatedAt);
+  }
+
   const base = existing
     ? existing
     : {
