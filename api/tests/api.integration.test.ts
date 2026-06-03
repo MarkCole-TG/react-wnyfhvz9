@@ -58,6 +58,7 @@ test("planner can create staff and save a schedule row", async () => {
   await withEnv(
     {
       AUTH_DEV_BYPASS: "true",
+      NODE_ENV: "test",
       APP_USERS_JSON: JSON.stringify([
         { userId: "user-viewer", entraObjectId: "oid-viewer", roles: ["viewer"] },
         { userId: "user-planner", entraObjectId: "oid-planner", roles: ["planner"] },
@@ -152,6 +153,7 @@ test("admin can lock a week and update roles for another user", async () => {
   await withEnv(
     {
       AUTH_DEV_BYPASS: "true",
+      NODE_ENV: "test",
       APP_USERS_JSON: JSON.stringify([
         { userId: "user-viewer", entraObjectId: "oid-viewer", roles: ["viewer"] },
         { userId: "user-planner", entraObjectId: "oid-planner", roles: ["planner"] },
@@ -254,6 +256,7 @@ test("returns 400 when schedule payload JSON is malformed", async () => {
   await withEnv(
     {
       AUTH_DEV_BYPASS: "true",
+      NODE_ENV: "test",
       APP_USERS_JSON: JSON.stringify([
         { userId: "user-planner", entraObjectId: "oid-planner", roles: ["planner"] },
       ]),

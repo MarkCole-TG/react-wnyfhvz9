@@ -34,6 +34,7 @@ test("returns 401 when bearer token is missing", async () => {
   await withEnv(
     {
       AUTH_DEV_BYPASS: "true",
+      NODE_ENV: "test",
       APP_USERS_JSON: JSON.stringify([
         {
           userId: "user-1",
@@ -55,6 +56,7 @@ test("returns 403 when Entra object id is not mapped to AppUsers", async () => {
   await withEnv(
     {
       AUTH_DEV_BYPASS: "true",
+      NODE_ENV: "test",
       APP_USERS_JSON: JSON.stringify([
         {
           userId: "user-1",
@@ -82,6 +84,7 @@ test("returns 200 for mapped viewer role", async () => {
   await withEnv(
     {
       AUTH_DEV_BYPASS: "true",
+      NODE_ENV: "test",
       APP_USERS_JSON: JSON.stringify([
         {
           userId: "user-2",
@@ -101,6 +104,35 @@ test("returns 200 for mapped viewer role", async () => {
 
       assert.equal(response.status, 200);
       assert.equal((response.jsonBody as any).message, "Hello from Azure Functions v4!");
+    }
+  );
+});
+
+test("ignores dev bypass in hosted environments", async () => {
+  await withEnv(
+    {
+      AUTH_DEV_BYPASS: "true",
+      NODE_ENV: "test",
+      WEBSITE_INSTANCE_ID: "hosted-instance",
+      APP_USERS_JSON: JSON.stringify([
+        {
+          userId: "user-2",
+          entraObjectId: "oid-viewer",
+          roles: ["viewer"],
+        },
+      ]),
+    },
+    async () => {
+      const response = await GetMessage(
+        request({
+          authorization: "Bearer test-token",
+          "x-dev-entra-object-id": "oid-viewer",
+        }),
+        context
+      );
+
+      assert.equal(response.status, 401);
+      assert.equal((response.jsonBody as any).error.code, "invalid_token");
     }
   );
 });
