@@ -2,8 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
 import { getJsonBody, InvalidJsonBodyError, parseWeek } from "../http/params";
-import { upsertScheduleRow } from "../data/store";
-import { SchedulePayload } from "../data/store";
+import { upsertScheduleRow, SchedulePayload } from "../data/store-sql";
 
 export async function UpsertSchedule(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["planner", "admin"]);
@@ -21,7 +20,7 @@ export async function UpsertSchedule(req: HttpRequest, context: InvocationContex
   let body: SchedulePayload;
   try {
     body = await getJsonBody<SchedulePayload>(req);
-    const row = upsertScheduleRow(week, staffId, body);
+    const row = await upsertScheduleRow(week, staffId, body);
     if (!row) {
       return fail(404, "staff_not_found", "Staff record was not found.", context.invocationId);
     }

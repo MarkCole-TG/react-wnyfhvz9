@@ -2,7 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
 import { getJsonBody, InvalidJsonBodyError } from "../http/params";
-import { createStaff, StaffCreatePayload } from "../data/store";
+import { createStaff, StaffCreatePayload } from "../data/store-sql";
 
 export async function CreateStaff(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["planner", "admin"]);
@@ -23,7 +23,7 @@ export async function CreateStaff(req: HttpRequest, context: InvocationContext):
   }
 
   try {
-    const staff = createStaff(body);
+    const staff = await createStaff(body);
     return ok({ staff }, 201);
   } catch (error) {
     if (error instanceof Error && error.message === "invalid_staff") {

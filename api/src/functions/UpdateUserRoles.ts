@@ -2,7 +2,8 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
 import { getJsonBody, InvalidJsonBodyError } from "../http/params";
-import { setUserRoles } from "../security/userStore";
+import { setUserRoles as setInMemoryUserRoles } from "../security/userStore";
+import { setUserRoles as setSqlUserRoles } from "../data/userStore-sql";
 import { AppRole } from "../security/types";
 
 interface RolePayload {
@@ -42,7 +43,12 @@ export async function UpdateUserRoles(req: HttpRequest, context: InvocationConte
     return fail(400, "missing_roles", "At least one valid role is required.", context.invocationId);
   }
 
-  setUserRoles(entraObjectId, roles);
+  if (process.env.SQL_USE_DATABASE === "true") {
+    await setSqlUserRoles(entraObjectId, roles);
+  } else {
+    setInMemoryUserRoles(entraObjectId, roles);
+  }
+
   return ok({ entraObjectId, roles });
 }
 

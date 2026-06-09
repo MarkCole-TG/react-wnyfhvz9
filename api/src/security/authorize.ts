@@ -1,5 +1,6 @@
 import { HttpRequest } from "@azure/functions";
-import { findUserByEntraObjectId } from "./userStore";
+import { findUserByEntraObjectId as findConfigUserByEntraObjectId } from "./userStore";
+import { findUserByEntraObjectId as findSqlUserByEntraObjectId } from "../data/userStore-sql";
 import { validateAccessToken } from "./auth";
 import { AppRole, AuthResult } from "./types";
 
@@ -28,7 +29,7 @@ export async function authorizeRequest(req: HttpRequest, correlationId: string, 
     };
   }
 
-  const user = findUserByEntraObjectId(tokenValidation.principal.entraObjectId);
+  const user = await resolveUser(tokenValidation.principal.entraObjectId);
   if (!user) {
     return {
       ok: false,
@@ -70,4 +71,21 @@ export async function authorizeRequest(req: HttpRequest, correlationId: string, 
     ok: true,
     user,
   };
+}
+
+function useSqlUserStore() {
+  return process.env.SQL_USE_DATABASE === "true";
+}
+
+async function resolveUser(entraObjectId: string) {
+  if (!useSqlUserStore()) {
+    return findConfigUserByEntraObjectId(entraObjectId);
+  }
+
+  try {
+    return await findSqlUserByEntraObjectId(entraObjectId);
+  } catch (error) {
+    console.error("Failed to resolve user from SQL store:", error);
+    return null;
+  }
 }

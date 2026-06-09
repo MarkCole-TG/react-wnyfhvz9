@@ -62,6 +62,26 @@ function normalizeWeekRecord(weekIsoDate, weekRecord) {
   };
 }
 
+function CommentInput({ value, disabled, onCommit }) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  return (
+    <input
+      type="text"
+      className="w-32 md:w-48 px-2 py-1 border rounded"
+      value={draft}
+      maxLength={40}
+      disabled={disabled}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => onCommit(draft)}
+    />
+  );
+}
+
 /* ============================================================
    MAIN APP COMPONENT
 ============================================================ */
@@ -620,14 +640,11 @@ return (
 
                   {/* COMMENT */}
                   <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      className="w-32 md:w-48 px-2 py-1 border rounded"
+                    <CommentInput
                       value={row.comment}
-                      maxLength={40}
-                      disabled={isSaving || isWeekLocked}
-                      onChange={(e) =>
-                        updateField(s.id, "comment", e.target.value)
+                      disabled={isWeekLocked}
+                      onCommit={(value) =>
+                        updateField(s.id, "comment", value)
                       }
                     />
                   </td>
