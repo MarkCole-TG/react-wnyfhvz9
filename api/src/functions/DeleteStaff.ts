@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { authorizeRequest } from "../security/authorize";
 import { fail } from "../http/response";
-import { deleteStaff } from "../data/store";
+import { deleteStaff } from "../data/store-sql";
 
 export async function DeleteStaff(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["planner", "admin"]);
@@ -18,7 +18,7 @@ export async function DeleteStaff(req: HttpRequest, context: InvocationContext):
   const updatedAt = (req.query.get("updatedAt") ?? "").trim();
 
   try {
-    const removed = deleteStaff(staffId, updatedAt);
+    const removed = await deleteStaff(staffId, updatedAt);
     if (!removed) {
       return fail(404, "staff_not_found", "Staff record was not found.", context.invocationId);
     }

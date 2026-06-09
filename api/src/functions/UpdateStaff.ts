@@ -2,7 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
 import { getJsonBody, InvalidJsonBodyError } from "../http/params";
-import { StaffUpdatePayload, updateStaff } from "../data/store";
+import { StaffUpdatePayload, updateStaff } from "../data/store-sql";
 
 export async function UpdateStaff(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["planner", "admin"]);
@@ -29,7 +29,7 @@ export async function UpdateStaff(req: HttpRequest, context: InvocationContext):
 
   let staff;
   try {
-    staff = updateStaff(staffId, body);
+    staff = await updateStaff(staffId, body);
     if (!staff) {
       return fail(404, "staff_not_found", "Staff record was not found.", context.invocationId);
     }

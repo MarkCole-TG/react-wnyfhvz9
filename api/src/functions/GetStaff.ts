@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
-import { listStaff } from "../data/store";
+import { listStaff } from "../data/store-sql";
 
 export async function GetStaff(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["viewer", "planner", "admin"]);
@@ -10,7 +10,7 @@ export async function GetStaff(req: HttpRequest, context: InvocationContext): Pr
     return fail(failure.status, failure.body.error.code, failure.body.error.message, failure.body.error.correlationId);
   }
 
-  return ok({ staff: listStaff() });
+  return ok({ staff: await listStaff() });
 }
 
 app.http("GetStaff", {

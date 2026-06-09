@@ -2,7 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
 import { getQueryParam, parseWeek } from "../http/params";
-import { listSchedule, getWeekRecord } from "../data/store";
+import { listSchedule, getWeekRecord } from "../data/store-sql";
 
 export async function GetSchedule(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["viewer", "planner", "admin"]);
@@ -16,9 +16,12 @@ export async function GetSchedule(req: HttpRequest, context: InvocationContext):
     return fail(400, "missing_week", "Query parameter 'week' is required.", context.invocationId);
   }
 
+  const weekRecord = await getWeekRecord(week);
+  const rows = await listSchedule(week);
+
   return ok({
-    week: getWeekRecord(week),
-    rows: listSchedule(week),
+    week: weekRecord,
+    rows,
   });
 }
 

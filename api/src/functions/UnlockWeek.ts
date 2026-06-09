@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
-import { setWeekStatus } from "../data/store";
+import { setWeekStatus } from "../data/store-sql";
 
 export async function UnlockWeek(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["admin"]);
@@ -15,7 +15,7 @@ export async function UnlockWeek(req: HttpRequest, context: InvocationContext): 
     return fail(400, "missing_week", "Route parameter 'week' is required.", context.invocationId);
   }
 
-  return ok({ week: setWeekStatus(week, "open", auth.user.userId) });
+  return ok({ week: await setWeekStatus(week, "open", auth.user.userId) });
 }
 
 app.http("UnlockWeek", {
