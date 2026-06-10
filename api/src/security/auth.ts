@@ -47,6 +47,83 @@ function getBearerToken(req: HttpRequest): string | null {
   return token.length > 0 ? token : null;
 }
 
+function decodeBase64Json(value: string): unknown | null {
+  try {
+    return JSON.parse(Buffer.from(value, "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function getClaimMap(claims: unknown): Record<string, string> {
+  if (!Array.isArray(claims)) {
+    return {};
+  }
+
+  return claims.reduce<Record<string, string>>((acc, claim) => {
+    if (claim && typeof claim === "object") {
+      const type = (claim as { typ?: unknown; type?: unknown }).typ ?? (claim as { typ?: unknown; type?: unknown }).type;
+      const value = (claim as { val?: unknown; value?: unknown }).val ?? (claim as { val?: unknown; value?: unknown }).value;
+      if (typeof type === "string" && typeof value === "string") {
+        acc[type] = value;
+      }
+    }
+    return acc;
+  }, {});
+}
+
+function validateWithSwaPrincipal(req: HttpRequest): TokenValidationResult | TokenValidationFailure | null {
+  const rawPrincipal = req.headers.get("x-ms-client-principal");
+  if (!rawPrincipal) {
+    return null;
+  }
+
+  const decoded = decodeBase64Json(rawPrincipal);
+  if (!decoded || typeof decoded !== "object") {
+    return {
+      ok: false,
+      code: "invalid_token",
+      message: "SWA client principal header could not be decoded.",
+    };
+  }
+
+  const decodedObject = decoded as { clientPrincipal?: unknown; claims?: unknown; userId?: unknown };
+  const principal = (decodedObject.clientPrincipal ?? decodedObject) as { claims?: unknown; userId?: unknown };
+  if (!principal) {
+    return {
+      ok: false,
+      code: "invalid_token",
+      message: "SWA client principal header is missing principal data.",
+    };
+  }
+
+  const claims = getClaimMap(principal.claims);
+  const entraObjectId =
+    claims.oid ||
+    claims["http://schemas.microsoft.com/identity/claims/objectidentifier"] ||
+    claims["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"] ||
+    claims.sub ||
+    (typeof principal.userId === "string" ? principal.userId : "");
+
+  if (!entraObjectId) {
+    return {
+      ok: false,
+      code: "invalid_token",
+      message: "SWA client principal does not include an object identifier.",
+    };
+  }
+
+  return {
+    ok: true,
+    principal: {
+      entraObjectId,
+      tenantId: claims.tid || undefined,
+      audience: claims.aud || undefined,
+      issuer: claims.iss || undefined,
+    },
+  };
+}
+
 function getExpectedIssuer(): string {
   const configuredIssuer = process.env.ENTRA_ISSUER;
   if (configuredIssuer) {
@@ -146,6 +223,15 @@ async function validateWithEntra(token: string): Promise<TokenValidationResult |
 }
 
 export async function validateAccessToken(req: HttpRequest): Promise<TokenValidationResult | TokenValidationFailure> {
+  const swaPrincipal = validateWithSwaPrincipal(req);
+  if (swaPrincipal) {
+    if (swaPrincipal.ok) {
+      return swaPrincipal;
+    }
+
+    return swaPrincipal;
+  }
+
   const token = getBearerToken(req);
   if (!token) {
     return {

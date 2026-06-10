@@ -60,6 +60,31 @@ Database connection is configured via environment variables:
 Important:
 - LocalDB uses Windows Authentication, not `sa` / SQL logins.
 - In SSMS, connect to server `(localdb)\\MSSQLLocalDB` with Windows Authentication.
+- When testing through the Azure Static Web Apps emulator, the API authorizes against the principal value forwarded in `x-ms-client-principal`. In local emulator flows this can match the login form `User ID`, so your `AppUsers.entraObjectId` row must match the value the emulator actually sends for that session.
+
+### Local SWA Auth Mapping
+
+If you log in through the SWA emulator at `/.auth/login/aad`, keep the local auth identifier aligned with your SQL seed data.
+
+- Simplest option: use the same value for the login form `User ID` and the mapped `AppUsers.entraObjectId` value, for example `oid-admin`.
+- If you use a generated or arbitrary `User ID`, add that exact value to `AppUsers` and `UserRoles` for local testing.
+- Use `http://localhost:4280/.auth/me` to inspect the current local principal and confirm which identifier the emulator stored.
+
+Example local admin seed for a custom SWA emulator user ID:
+
+```sql
+IF NOT EXISTS (SELECT 1 FROM AppUsers WHERE entraObjectId = '0f1c9e6d1b508d72211eeb34f5302f0c')
+BEGIN
+   INSERT INTO AppUsers (userId, entraObjectId, displayName, email)
+   VALUES ('user-swa-local-admin', '0f1c9e6d1b508d72211eeb34f5302f0c', 'Local SWA Admin', 'mark.cole@tonygee.com');
+END;
+
+IF NOT EXISTS (SELECT 1 FROM UserRoles WHERE entraObjectId = '0f1c9e6d1b508d72211eeb34f5302f0c' AND role = 'admin')
+BEGIN
+   INSERT INTO UserRoles (entraObjectId, role)
+   VALUES ('0f1c9e6d1b508d72211eeb34f5302f0c', 'admin');
+END;
+```
 
 ## Local Development (SQL Server Express)
 
@@ -214,6 +239,12 @@ Schema is automatically created on first connection.
 - LocalDB does not support SQL logins (`sa` / password). Use Windows auth and `SQL_AUTH_MODE=windows`.
 - For SQLExpress/Azure SQL auth, verify credentials in environment variables.
 - For Azure AD, ensure managed identity has been granted database access
+
+### "Authenticated user is not mapped in AppUsers/UserRoles" Error
+
+- Inspect `http://localhost:4280/.auth/me` and confirm which identifier the SWA emulator stored for the session.
+- Check `AppUsers.entraObjectId` for that exact value, not just the expected Entra `oid` claim placeholder.
+- If needed, update the local login form `User ID` to match your seeded value, or add a matching `AppUsers` and `UserRoles` row for the emulator user ID.
 
 ### Slow Performance
 

@@ -20,6 +20,11 @@ This document defines the v1 contract for the backend API, including authenticat
 	- UserRoles (one or more assigned roles).
 - If no matching AppUsers row exists, API returns 403 Forbidden.
 
+## Local Development Note
+
+- In production, authorization is based on the authenticated Entra principal identifier.
+- In local Azure Static Web Apps emulator flows, inspect `/.auth/me` and the forwarded `x-ms-client-principal` value when troubleshooting identity mapping, because emulator login data must still align with the `AppUsers.entraObjectId` rows used by the API.
+
 ## Role Policy
 
 - viewer: read only.

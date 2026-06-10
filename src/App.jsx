@@ -408,6 +408,20 @@ return (
 
 
         <div className="flex gap-3">
+          <a
+            href="/.auth/login/aad?post_login_redirect_uri=/"
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg shadow"
+          >
+            Sign In
+          </a>
+
+          <a
+            href="/.auth/logout?post_logout_redirect_uri=/"
+            className="px-4 py-2 bg-slate-700 text-white rounded-lg shadow"
+          >
+            Sign Out
+          </a>
+
           <button
             onClick={() => setAddOpen(true)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow"
