@@ -30,17 +30,23 @@ function buildUrl(path, query) {
 }
 
 export async function apiRequest(path, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+  const hasBody = options.body !== undefined;
   const authHeaders = await getApiAuthHeaders();
   const headers = {
-    "Content-Type": "application/json",
     ...authHeaders,
     ...(options.headers || {})
   };
 
+  // Avoid forcing a preflight on simple GET requests.
+  if (hasBody && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const response = await fetch(buildUrl(path, options.query), {
-    method: options.method || "GET",
+    method,
     headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: hasBody ? JSON.stringify(options.body) : undefined
   });
 
   const contentType = response.headers.get("content-type") || "";
