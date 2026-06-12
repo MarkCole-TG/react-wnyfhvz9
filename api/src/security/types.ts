@@ -2,6 +2,7 @@ export type AppRole = "viewer" | "planner" | "admin";
 
 export interface TokenPrincipal {
   entraObjectId: string;
+  roles: AppRole[];
   tenantId?: string;
   audience?: string;
   issuer?: string;

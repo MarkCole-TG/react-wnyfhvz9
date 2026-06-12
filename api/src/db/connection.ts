@@ -20,12 +20,18 @@ export async function getConnection(): Promise<mssql.ConnectionPool> {
   pool = new activeSqlModule.ConnectionPool(runtime.config);
   
   pool.on("error", (err) => {
-    console.error("SQL Connection Pool Error:", err);
+    console.error("[connection] SQL Connection Pool Error:", err);
     pool = null;
   });
 
-  await pool.connect();
-  console.log("Connected to SQL database");
+  try {
+    await pool.connect();
+    console.log("[connection] Connected to SQL database");
+  } catch (err) {
+    console.error("[connection] Failed to connect to SQL database:", err);
+    pool = null;
+    throw err;
+  }
   return pool;
 }
 
