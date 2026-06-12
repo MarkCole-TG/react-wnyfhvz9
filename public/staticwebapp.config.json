@@ -8,6 +8,12 @@
   },
   "routes": [
     {
+      "route": "/index.html",
+      "headers": {
+        "Cache-Control": "no-store, no-cache, must-revalidate"
+      }
+    },
+    {
       "route": "/api/*",
       "allowedRoles": ["anonymous"]
     },
