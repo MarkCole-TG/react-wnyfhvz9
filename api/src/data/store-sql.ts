@@ -127,12 +127,17 @@ function sqlRowToScheduleRow(row: any): ScheduleRow {
 }
 
 export async function listStaff(): Promise<StaffMember[]> {
-  await ensureDatabaseInitialized();
+  try {
+    await ensureDatabaseInitialized();
 
-  const rows = await query<any>(
-    `SELECT * FROM Staff WHERE active = 1 ORDER BY name ASC`
-  );
-  return rows.map(sqlRowToStaffMember);
+    const rows = await query<any>(
+      `SELECT * FROM Staff WHERE active = 1 ORDER BY name ASC`
+    );
+    return rows.map(sqlRowToStaffMember);
+  } catch (error) {
+    console.error("[store-sql] listStaff error:", error);
+    throw error;
+  }
 }
 
 export async function getStaff(staffId: string): Promise<StaffMember | null> {
