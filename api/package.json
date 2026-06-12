@@ -14,11 +14,11 @@
   "dependencies": {
     "@azure/functions": "^4.0.0",
     "jose": "^5.9.6",
-    "msnodesqlv8": "^4.2.1",
     "mssql": "^11.0.1"
   },
   "devDependencies": {
     "@types/node": "^18.x",
+    "msnodesqlv8": "^4.2.1",
     "node": "^22.22.3",
     "rimraf": "^5.0.0",
     "tsx": "^4.20.6",
