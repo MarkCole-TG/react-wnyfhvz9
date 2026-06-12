@@ -50,6 +50,17 @@ function getErrorMessage(error, fallbackMessage) {
   return fallbackMessage;
 }
 
+function isAuthSignInError(error) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error;
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const status = typeof candidate.status === "number" ? candidate.status : 0;
+  return code === "missing_token" || status === 401;
+}
+
 function normalizeWeekRecord(weekIsoDate, weekRecord) {
   return {
     week: weekRecord?.week || weekIsoDate,
@@ -96,8 +107,20 @@ export default function App() {
   const [isLoadingWeek, setIsLoadingWeek] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [signInRequired, setSignInRequired] = useState(false);
   const [apiMessage, setApiMessage] = useState("");
   const [weekRecords, setWeekRecords] = useState({});
+
+  const handleApiError = (error, fallbackMessage) => {
+    if (isAuthSignInError(error)) {
+      setSignInRequired(true);
+      setErrorMessage("");
+      return;
+    }
+
+    setSignInRequired(false);
+    setErrorMessage(getErrorMessage(error, fallbackMessage));
+  };
 
   /* -----------------------------------------
      OPEN ON NEXT MONDAY
@@ -145,10 +168,11 @@ export default function App() {
         const loadedStaff = await fetchStaff();
         if (!active) return;
         setStaff(loadedStaff.map(normalizeStaffMember));
+        setSignInRequired(false);
         setErrorMessage("");
       } catch (error) {
         if (!active) return;
-        setErrorMessage(getErrorMessage(error, "Unable to load staff."));
+        handleApiError(error, "Unable to load staff.");
       } finally {
         if (active) {
           setIsLoadingStaff(false);
@@ -208,10 +232,11 @@ export default function App() {
           ...prev,
           [weekKey]: normalizeWeekRecord(weekIsoDate, payload.week)
         }));
+        setSignInRequired(false);
         setErrorMessage("");
       } catch (error) {
         if (!active) return;
-        setErrorMessage(getErrorMessage(error, "Unable to load week schedule."));
+        handleApiError(error, "Unable to load week schedule.");
       } finally {
         if (active) {
           setIsLoadingWeek(false);
@@ -245,6 +270,7 @@ export default function App() {
 
     // Update local state optimistically
     setRow(weekKey, id, optimisticRow);
+    setSignInRequired(false);
     setErrorMessage("");
 
     setIsSaving(true);
@@ -255,7 +281,7 @@ export default function App() {
     } catch (error) {
       // Rollback to original row on failure
       setRow(weekKey, id, originalRow);
-      setErrorMessage(getErrorMessage(error, "Unable to save schedule change."));
+      handleApiError(error, "Unable to save schedule change.");
     } finally {
       setIsSaving(false);
     }
@@ -319,9 +345,10 @@ export default function App() {
         ...prev,
         [weekKey]: normalizeWeekRecord(weekIsoDate, updated)
       }));
+      setSignInRequired(false);
       setErrorMessage("");
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, "Unable to lock this week."));
+      handleApiError(error, "Unable to lock this week.");
     } finally {
       setIsSaving(false);
     }
@@ -335,9 +362,10 @@ export default function App() {
         ...prev,
         [weekKey]: normalizeWeekRecord(weekIsoDate, updated)
       }));
+      setSignInRequired(false);
       setErrorMessage("");
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, "Unable to unlock this week."));
+      handleApiError(error, "Unable to unlock this week.");
     } finally {
       setIsSaving(false);
     }
@@ -348,9 +376,10 @@ export default function App() {
     try {
       await updateUserRoles(entraObjectId, roles);
       setRolesOpen(false);
+      setSignInRequired(false);
       setErrorMessage("");
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, "Unable to update user roles."));
+      handleApiError(error, "Unable to update user roles.");
     } finally {
       setIsSaving(false);
     }
@@ -387,6 +416,19 @@ return (
       {isWeekLocked && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
           This week is locked. Schedule edits are disabled until the week is unlocked.
+        </div>
+      )}
+
+      {signInRequired && (
+        <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">
+          Please sign in to continue. {" "}
+          <a
+            href="/.auth/login/aad?post_login_redirect_uri=/"
+            className="font-semibold underline"
+          >
+            Sign in
+          </a>
+          .
         </div>
       )}
 
