@@ -72,8 +72,23 @@ function getClaimMap(claims: unknown): Record<string, string> {
   }, {});
 }
 
-function isAppRole(value: string): value is AppRole {
-  return value === "viewer" || value === "planner" || value === "admin";
+function normalizeAppRole(value: string): AppRole | null {
+  const normalized = value.trim().toLowerCase();
+
+  // Accept common role claim shapes like "Admin", "role:admin", or "app/admin".
+  if (normalized === "viewer" || normalized.endsWith("/viewer") || normalized.endsWith(":viewer")) {
+    return "viewer";
+  }
+
+  if (normalized === "planner" || normalized.endsWith("/planner") || normalized.endsWith(":planner")) {
+    return "planner";
+  }
+
+  if (normalized === "admin" || normalized.endsWith("/admin") || normalized.endsWith(":admin")) {
+    return "admin";
+  }
+
+  return null;
 }
 
 function getClaimValues(claims: unknown, claimType: string): string[] {
@@ -103,17 +118,23 @@ function getRolesFromSwaClaims(claims: unknown): AppRole[] {
   const legacyRoles = getClaimValues(claims, "role");
   const schemaRoles = getClaimValues(claims, "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
 
-  return [...new Set([...directRoles, ...legacyRoles, ...schemaRoles])].filter(isAppRole);
+  return [...new Set([...directRoles, ...legacyRoles, ...schemaRoles])]
+    .map((role) => normalizeAppRole(role))
+    .filter((role): role is AppRole => role !== null);
 }
 
 function getRolesFromJwtPayload(payload: Record<string, unknown>): AppRole[] {
   const raw = payload.roles;
   if (Array.isArray(raw)) {
-    return raw.filter((role): role is AppRole => typeof role === "string" && isAppRole(role));
+    return raw
+      .filter((role): role is string => typeof role === "string")
+      .map((role) => normalizeAppRole(role))
+      .filter((role): role is AppRole => role !== null);
   }
 
-  if (typeof raw === "string" && isAppRole(raw)) {
-    return [raw];
+  if (typeof raw === "string") {
+    const role = normalizeAppRole(raw);
+    return role ? [role] : [];
   }
 
   return [];
