@@ -1,5 +1,4 @@
 import mssql from "mssql";
-import mssqlNative from "mssql/msnodesqlv8";
 
 type SqlModule = typeof mssql;
 
@@ -48,6 +47,8 @@ function getSqlRuntimeConfig(): SqlRuntimeConfig {
   const isLocalDb = server.toLowerCase().includes("(localdb)");
   if (isLocalDb || authMode === "windows") {
     // LocalDB requires Windows auth and msnodesqlv8 driver.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mssqlNative = require("mssql/msnodesqlv8") as SqlModule;
     return {
       module: mssqlNative as unknown as SqlModule,
       config: {
