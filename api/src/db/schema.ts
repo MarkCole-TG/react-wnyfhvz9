@@ -119,7 +119,13 @@ export async function initializeDatabase(): Promise<void> {
 
     console.log("[schema] Database schema initialization completed");
   } catch (error) {
-    console.error("[schema] Database schema initialization failed:", error);
+    console.error("[schema] Database schema initialization failed:");
+    console.error("[schema] Error type:", typeof error);
+    console.error("[schema] Error object:", JSON.stringify(error, null, 2));
+    if (error instanceof Error) {
+      console.error("[schema] Error.message:", error.message);
+      console.error("[schema] Error.stack:", error.stack);
+    }
     throw error;
   }
 }

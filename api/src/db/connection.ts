@@ -166,7 +166,13 @@ export async function execute(sql: string, params?: Record<string, unknown>): Pr
 
     await request.query(sql);
   } catch (error) {
-    console.error("[connection] execute() failed:", error);
+    console.error("[connection] execute() failed:");
+    console.error("[connection] Error type:", typeof error);
+    console.error("[connection] Error object:", JSON.stringify(error, null, 2));
+    if (error instanceof Error) {
+      console.error("[connection] Error.message:", error.message);
+      console.error("[connection] Error.stack:", error.stack);
+    }
     throw error;
   }
 }
