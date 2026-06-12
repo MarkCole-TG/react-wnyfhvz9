@@ -18,9 +18,12 @@
   },
   "devDependencies": {
     "@types/node": "^18.x",
+    "autoprefixer": "^10.5.0",
     "msnodesqlv8": "^4.2.1",
     "node": "^22.22.3",
+    "postcss": "^8.5.15",
     "rimraf": "^5.0.0",
+    "tailwindcss": "^4.3.0",
     "tsx": "^4.20.6",
     "typescript": "^6.0.3"
   }
