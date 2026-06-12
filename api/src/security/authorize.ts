@@ -29,7 +29,9 @@ export async function authorizeRequest(req: HttpRequest, correlationId: string, 
     };
   }
 
-  const user = await resolveUser(tokenValidation.principal.entraObjectId);
+  const user = useTokenRoleAuthorization()
+    ? buildUserFromTokenRoles(tokenValidation.principal.entraObjectId, tokenValidation.principal.roles)
+    : await resolveUser(tokenValidation.principal.entraObjectId);
   if (!user) {
     return {
       ok: false,
@@ -77,15 +79,28 @@ function useSqlUserStore() {
   return process.env.SQL_USE_DATABASE === "true";
 }
 
+function useTokenRoleAuthorization() {
+  return process.env.AUTH_USE_TOKEN_ROLES !== "false";
+}
+
+function buildUserFromTokenRoles(entraObjectId: string, roles: AppRole[]) {
+  return {
+    userId: entraObjectId,
+    entraObjectId,
+    roles,
+    isActive: true,
+  };
+}
+
 async function resolveUser(entraObjectId: string) {
-  if (!useSqlUserStore()) {
-    return findConfigUserByEntraObjectId(entraObjectId);
+  if (useSqlUserStore()) {
+    return await findSqlUserByEntraObjectId(entraObjectId);
   }
 
   try {
-    return await findSqlUserByEntraObjectId(entraObjectId);
+    return findConfigUserByEntraObjectId(entraObjectId);
   } catch (error) {
-    console.error("Failed to resolve user from SQL store:", error);
+    console.error("Failed to resolve user from AppUsers config:", error);
     return null;
   }
 }

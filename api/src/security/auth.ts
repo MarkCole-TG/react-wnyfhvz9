@@ -1,6 +1,6 @@
 import { HttpRequest } from "@azure/functions";
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { TokenPrincipal } from "./types";
+import { AppRole, TokenPrincipal } from "./types";
 
 const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
@@ -72,6 +72,53 @@ function getClaimMap(claims: unknown): Record<string, string> {
   }, {});
 }
 
+function isAppRole(value: string): value is AppRole {
+  return value === "viewer" || value === "planner" || value === "admin";
+}
+
+function getClaimValues(claims: unknown, claimType: string): string[] {
+  if (!Array.isArray(claims)) {
+    return [];
+  }
+
+  return claims
+    .map((claim) => {
+      if (!claim || typeof claim !== "object") {
+        return null;
+      }
+
+      const type = (claim as { typ?: unknown; type?: unknown }).typ ?? (claim as { typ?: unknown; type?: unknown }).type;
+      const value = (claim as { val?: unknown; value?: unknown }).val ?? (claim as { val?: unknown; value?: unknown }).value;
+      if (type !== claimType || typeof value !== "string") {
+        return null;
+      }
+
+      return value;
+    })
+    .filter((value): value is string => Boolean(value));
+}
+
+function getRolesFromSwaClaims(claims: unknown): AppRole[] {
+  const directRoles = getClaimValues(claims, "roles");
+  const legacyRoles = getClaimValues(claims, "role");
+  const schemaRoles = getClaimValues(claims, "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+
+  return [...new Set([...directRoles, ...legacyRoles, ...schemaRoles])].filter(isAppRole);
+}
+
+function getRolesFromJwtPayload(payload: Record<string, unknown>): AppRole[] {
+  const raw = payload.roles;
+  if (Array.isArray(raw)) {
+    return raw.filter((role): role is AppRole => typeof role === "string" && isAppRole(role));
+  }
+
+  if (typeof raw === "string" && isAppRole(raw)) {
+    return [raw];
+  }
+
+  return [];
+}
+
 function validateWithSwaPrincipal(req: HttpRequest): TokenValidationResult | TokenValidationFailure | null {
   const rawPrincipal = req.headers.get("x-ms-client-principal");
   if (!rawPrincipal) {
@@ -117,6 +164,7 @@ function validateWithSwaPrincipal(req: HttpRequest): TokenValidationResult | Tok
     ok: true,
     principal: {
       entraObjectId,
+      roles: getRolesFromSwaClaims(principal.claims),
       tenantId: claims.tid || undefined,
       audience: claims.aud || undefined,
       issuer: claims.iss || undefined,
@@ -168,6 +216,7 @@ async function validateWithBypass(req: HttpRequest, token: string): Promise<Toke
     ok: true,
     principal: {
       entraObjectId,
+      roles: ["admin"],
       audience: "dev",
       issuer: "dev-bypass",
       tenantId: req.headers.get("x-dev-tenant-id") || "dev",
@@ -208,6 +257,7 @@ async function validateWithEntra(token: string): Promise<TokenValidationResult |
       ok: true,
       principal: {
         entraObjectId,
+        roles: getRolesFromJwtPayload(verified.payload as Record<string, unknown>),
         tenantId: typeof verified.payload.tid === "string" ? verified.payload.tid : undefined,
         audience: typeof verified.payload.aud === "string" ? verified.payload.aud : undefined,
         issuer: typeof verified.payload.iss === "string" ? verified.payload.iss : undefined,
