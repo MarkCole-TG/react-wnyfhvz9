@@ -4,13 +4,19 @@ import { fail, ok } from "../http/response";
 import { listStaff } from "../data/store-sql";
 
 export async function GetStaff(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
-  const auth = await authorizeRequest(req, context.invocationId, ["viewer", "planner", "admin"]);
-  if (!auth.ok) {
-    const failure = auth as unknown as { status: number; body: { error: { code: string; message: string; correlationId: string } } };
-    return fail(failure.status, failure.body.error.code, failure.body.error.message, failure.body.error.correlationId);
-  }
+  try {
+    const auth = await authorizeRequest(req, context.invocationId, ["viewer", "planner", "admin"]);
+    if (!auth.ok) {
+      const failure = auth as unknown as { status: number; body: { error: { code: string; message: string; correlationId: string } } };
+      return fail(failure.status, failure.body.error.code, failure.body.error.message, failure.body.error.correlationId);
+    }
 
-  return ok({ staff: await listStaff() });
+    const staff = await listStaff();
+    return ok({ staff });
+  } catch (error) {
+    console.error("[GetStaff] Error:", error);
+    return fail(500, "server_error", "Unable to list staff.", context.invocationId);
+  }
 }
 
 app.http("GetStaff", {

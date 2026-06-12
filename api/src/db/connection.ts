@@ -153,17 +153,22 @@ export async function query<T>(sql: string, params?: Record<string, unknown>): P
 }
 
 export async function execute(sql: string, params?: Record<string, unknown>): Promise<void> {
-  const conn = await getConnection();
-  const request = conn.request();
+  try {
+    const conn = await getConnection();
+    const request = conn.request();
 
-  // Add parameters to request
-  if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      request.input(key, value);
+    // Add parameters to request
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        request.input(key, value);
+      }
     }
-  }
 
-  await request.query(sql);
+    await request.query(sql);
+  } catch (error) {
+    console.error("[connection] execute() failed:", error);
+    throw error;
+  }
 }
 
 export async function executeWithResult(
