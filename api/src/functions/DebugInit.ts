@@ -16,6 +16,7 @@ interface ManagedIdentityDiagnostics {
   legacyEndpointConfigured: boolean;
   legacySecretConfigured: boolean;
   tokenSource?: "identity" | "msi";
+  tokenAttemptSource?: string;
   tokenRequestAttempted: boolean;
   tokenRequestSucceeded: boolean;
   error?: string;
@@ -82,8 +83,8 @@ async function getManagedIdentityDiagnostics(): Promise<ManagedIdentityDiagnosti
     tokenRequestSucceeded: false,
   };
 
-  const canUseIdentityEndpoint = Boolean(identityEndpoint && identityHeader);
-  const canUseLegacyEndpoint = Boolean(msiEndpoint && msiSecret);
+  const canUseIdentityEndpoint = Boolean(identityEndpoint);
+  const canUseLegacyEndpoint = Boolean(msiEndpoint);
 
   if (!canUseIdentityEndpoint && !canUseLegacyEndpoint) {
     return diagnostics;
@@ -92,52 +93,92 @@ async function getManagedIdentityDiagnostics(): Promise<ManagedIdentityDiagnosti
   diagnostics.tokenRequestAttempted = true;
 
   try {
-    let response: Response;
+    const attempts: Array<{
+      source: "identity" | "msi";
+      attemptSource: string;
+      endpoint: string;
+      apiVersion: string;
+      headers: Record<string, string>;
+    }> = [];
 
-    if (canUseIdentityEndpoint && identityEndpoint && identityHeader) {
-      diagnostics.tokenSource = "identity";
-      const url = new URL(identityEndpoint);
-      url.searchParams.set("api-version", "2019-08-01");
-      url.searchParams.set("resource", "https://database.windows.net/");
-      response = await fetch(url, {
-        headers: {
-          "X-IDENTITY-HEADER": identityHeader,
-        },
+    if (identityEndpoint) {
+      if (identityHeader) {
+        attempts.push({
+          source: "identity",
+          attemptSource: "identity-endpoint-with-header",
+          endpoint: identityEndpoint,
+          apiVersion: "2019-08-01",
+          headers: { "X-IDENTITY-HEADER": identityHeader },
+        });
+      }
+
+      attempts.push({
+        source: "identity",
+        attemptSource: "identity-endpoint-no-header",
+        endpoint: identityEndpoint,
+        apiVersion: "2019-08-01",
+        headers: {},
       });
-    } else {
-      diagnostics.tokenSource = "msi";
-      const url = new URL(msiEndpoint as string);
-      url.searchParams.set("api-version", "2017-09-01");
-      url.searchParams.set("resource", "https://database.windows.net/");
-      response = await fetch(url, {
-        headers: {
-          Secret: msiSecret as string,
-        },
+    }
+
+    if (msiEndpoint) {
+      if (msiSecret) {
+        attempts.push({
+          source: "msi",
+          attemptSource: "legacy-msi-with-secret",
+          endpoint: msiEndpoint,
+          apiVersion: "2017-09-01",
+          headers: { Secret: msiSecret },
+        });
+      }
+
+      attempts.push({
+        source: "msi",
+        attemptSource: "legacy-msi-metadata-header",
+        endpoint: msiEndpoint,
+        apiVersion: "2017-09-01",
+        headers: { Metadata: "true" },
       });
     }
 
-    if (!response.ok) {
-      diagnostics.error = `Managed identity token request (${diagnostics.tokenSource ?? "unknown"}) failed with status ${response.status}`;
-      return diagnostics;
-    }
+    for (const attempt of attempts) {
+      const url = new URL(attempt.endpoint);
+      url.searchParams.set("api-version", attempt.apiVersion);
+      url.searchParams.set("resource", "https://database.windows.net/");
 
-    const payload = (await response.json()) as { access_token?: unknown };
-    if (typeof payload.access_token !== "string") {
-      diagnostics.error = "Managed identity token response did not include access_token";
-      return diagnostics;
-    }
+      const response = await fetch(url, {
+        headers: attempt.headers,
+      });
 
-    diagnostics.tokenRequestSucceeded = true;
+      diagnostics.tokenSource = attempt.source;
+      diagnostics.tokenAttemptSource = attempt.attemptSource;
 
-    const claims = decodeJwtPayload(payload.access_token);
-    if (claims) {
-      diagnostics.claims = {
-        oid: typeof claims.oid === "string" ? claims.oid : undefined,
-        appid: typeof claims.appid === "string" ? claims.appid : undefined,
-        tid: typeof claims.tid === "string" ? claims.tid : undefined,
-        aud: typeof claims.aud === "string" ? claims.aud : undefined,
-        xms_mirid: typeof claims.xms_mirid === "string" ? claims.xms_mirid : undefined,
-      };
+      if (!response.ok) {
+        diagnostics.error = `Managed identity token request (${attempt.attemptSource}) failed with status ${response.status}`;
+        continue;
+      }
+
+      const payload = (await response.json()) as { access_token?: unknown };
+      if (typeof payload.access_token !== "string") {
+        diagnostics.error = `Managed identity token request (${attempt.attemptSource}) returned no access_token`;
+        continue;
+      }
+
+      diagnostics.tokenRequestSucceeded = true;
+      diagnostics.error = undefined;
+
+      const claims = decodeJwtPayload(payload.access_token);
+      if (claims) {
+        diagnostics.claims = {
+          oid: typeof claims.oid === "string" ? claims.oid : undefined,
+          appid: typeof claims.appid === "string" ? claims.appid : undefined,
+          tid: typeof claims.tid === "string" ? claims.tid : undefined,
+          aud: typeof claims.aud === "string" ? claims.aud : undefined,
+          xms_mirid: typeof claims.xms_mirid === "string" ? claims.xms_mirid : undefined,
+        };
+      }
+
+      break;
     }
   } catch (error) {
     diagnostics.error = error instanceof Error ? error.message : "Unknown managed identity diagnostics error";
