@@ -718,7 +718,7 @@ return (
                   <td className="px-4 py-2">
                     <CommentInput
                       value={row.comment}
-                      disabled={isWeekLocked}
+                      disabled={isSaving || isWeekLocked}
                       onCommit={(value) =>
                         updateField(s.id, "comment", value)
                       }
