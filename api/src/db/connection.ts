@@ -10,6 +10,13 @@ interface SqlRuntimeConfig {
   config: mssql.config;
 }
 
+interface TokenAcquisitionAttempt {
+  source: string;
+  endpoint: string;
+  apiVersion: string;
+  headers: Record<string, string>;
+}
+
 function getConfiguredTimeoutMs(envName: string, fallback: number): number {
   const raw = process.env[envName];
   if (!raw) {
@@ -24,7 +31,102 @@ function getConfiguredTimeoutMs(envName: string, fallback: number): number {
   return parsed;
 }
 
-function buildAzureAuthenticationConfig() {
+async function requestManagedIdentityToken(): Promise<string | null> {
+  const identityEndpoint = process.env.IDENTITY_ENDPOINT;
+  const identityHeader = process.env.IDENTITY_HEADER;
+  const msiEndpoint = process.env.MSI_ENDPOINT;
+  const msiSecret = process.env.MSI_SECRET;
+
+  const attempts: TokenAcquisitionAttempt[] = [];
+
+  if (identityEndpoint) {
+    if (identityHeader) {
+      attempts.push({
+        source: "identity-endpoint-with-header",
+        endpoint: identityEndpoint,
+        apiVersion: "2019-08-01",
+        headers: {
+          "X-IDENTITY-HEADER": identityHeader,
+        },
+      });
+    }
+
+    // Some hosts expose IDENTITY_ENDPOINT but do not require X-IDENTITY-HEADER.
+    attempts.push({
+      source: "identity-endpoint-no-header",
+      endpoint: identityEndpoint,
+      apiVersion: "2019-08-01",
+      headers: {},
+    });
+  }
+
+  if (msiEndpoint) {
+    if (msiSecret) {
+      attempts.push({
+        source: "legacy-msi-with-secret",
+        endpoint: msiEndpoint,
+        apiVersion: "2017-09-01",
+        headers: {
+          Secret: msiSecret,
+        },
+      });
+    }
+
+    // Legacy MSI endpoint fallback used by some app service variants.
+    attempts.push({
+      source: "legacy-msi-metadata-header",
+      endpoint: msiEndpoint,
+      apiVersion: "2017-09-01",
+      headers: {
+        Metadata: "true",
+      },
+    });
+  }
+
+  for (const attempt of attempts) {
+    try {
+      const url = new URL(attempt.endpoint);
+      url.searchParams.set("api-version", attempt.apiVersion);
+      url.searchParams.set("resource", "https://database.windows.net/");
+
+      const response = await fetch(url, {
+        headers: attempt.headers,
+      });
+
+      if (!response.ok) {
+        console.warn(
+          `[connection] Managed identity token attempt '${attempt.source}' failed with status ${response.status}`
+        );
+        continue;
+      }
+
+      const payload = (await response.json()) as { access_token?: unknown };
+      if (typeof payload.access_token === "string" && payload.access_token.length > 0) {
+        console.log(`[connection] Managed identity token acquired via '${attempt.source}'`);
+        return payload.access_token;
+      }
+
+      console.warn(`[connection] Managed identity token attempt '${attempt.source}' returned no access_token`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[connection] Managed identity token attempt '${attempt.source}' threw: ${message}`);
+    }
+  }
+
+  return null;
+}
+
+async function buildAzureAuthenticationConfig() {
+  const token = await requestManagedIdentityToken();
+  if (token) {
+    return {
+      type: "azure-active-directory-access-token" as any,
+      options: {
+        token,
+      },
+    };
+  }
+
   const msiEndpoint = process.env.MSI_ENDPOINT;
   const msiSecret = process.env.MSI_SECRET;
 
@@ -50,7 +152,7 @@ export async function getConnection(): Promise<mssql.ConnectionPool> {
     return pool;
   }
 
-  const runtime = getSqlRuntimeConfig();
+  const runtime = await getSqlRuntimeConfig();
   activeSqlModule = runtime.module;
   pool = new activeSqlModule.ConnectionPool(runtime.config);
   
@@ -71,10 +173,20 @@ export async function getConnection(): Promise<mssql.ConnectionPool> {
 }
 
 export function getConnectionConfig(): mssql.config {
-  return getSqlRuntimeConfig().config;
+  return {
+    server: process.env.SQL_SERVER || "localhost",
+    database: process.env.SQL_DATABASE || "ScheduleDb",
+    options: {
+      encrypt:
+        Boolean(process.env.WEBSITE_INSTANCE_ID) ||
+        (process.env.SQL_SERVER || "").includes("database.windows.net"),
+      trustServerCertificate: true,
+      connectTimeout: getConfiguredTimeoutMs("SQL_CONNECT_TIMEOUT_MS", 60000),
+    },
+  } as mssql.config;
 }
 
-function getSqlRuntimeConfig(): SqlRuntimeConfig {
+async function getSqlRuntimeConfig(): Promise<SqlRuntimeConfig> {
   // Determine if using Azure SQL or local SQL Server
   const isProduction = process.env.WEBSITE_INSTANCE_ID !== undefined; // App Service indicator
   const connectionString = process.env.SQL_CONNECTION_STRING;
@@ -113,7 +225,7 @@ function getSqlRuntimeConfig(): SqlRuntimeConfig {
 
   // Otherwise build config from individual parameters
   const authentication = useAzureAuth
-    ? buildAzureAuthenticationConfig()
+    ? await buildAzureAuthenticationConfig()
     : {
         type: "default" as any,
         options:
