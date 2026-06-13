@@ -2,7 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
 import { getQueryParam, parseWeek } from "../http/params";
-import { listSchedule, getWeekRecord } from "../data/store-sql";
+import { listSchedule, getWeekRecord } from "../data/store-runtime";
 
 export async function GetSchedule(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["viewer", "planner", "admin"]);

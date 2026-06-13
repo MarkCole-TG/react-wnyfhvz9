@@ -2,7 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
 import { getJsonBody, InvalidJsonBodyError } from "../http/params";
-import { StaffUpdatePayload, updateStaff } from "../data/store-sql";
+import { StaffUpdatePayload, updateStaff } from "../data/store-runtime";
 
 export async function UpdateStaff(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["planner", "admin"]);

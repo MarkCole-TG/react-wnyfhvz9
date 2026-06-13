@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { authorizeRequest } from "../security/authorize";
 import { fail } from "../http/response";
-import { deleteStaff } from "../data/store-sql";
+import { deleteStaff } from "../data/store-runtime";
 
 export async function DeleteStaff(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["planner", "admin"]);

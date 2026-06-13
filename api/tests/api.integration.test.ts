@@ -8,7 +8,7 @@ import { LockWeek } from "../src/functions/LockWeek";
 import { UpdateStaff } from "../src/functions/UpdateStaff";
 import { UpdateUserRoles } from "../src/functions/UpdateUserRoles";
 import { UpsertSchedule } from "../src/functions/UpsertSchedule";
-import { resetAppState } from "../src/data/store-sql";
+import { resetAppState } from "../src/data/store-runtime";
 import { resetUserOverrides } from "../src/security/userStore";
 
 function withEnv(values: Record<string, string | undefined>, run: () => Promise<void>) {

@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
-import { listStaff } from "../data/store-sql";
+import { listStaff } from "../data/store-runtime";
 
 export async function GetStaff(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   try {
