@@ -29,6 +29,10 @@ function getDevBypassHeaders() {
   const tenantId = import.meta.env.VITE_DEV_TENANT_ID || DEV_BYPASS_TENANT_ID;
 
   return {
+    // Backend auth.ts requires a Bearer token before it checks AUTH_DEV_BYPASS.
+    // A non-empty placeholder satisfies the missing_token guard without needing
+    // a real JWT in local development.
+    "authorization": "Bearer dev-bypass-token",
     "x-dev-entra-object-id": objectId,
     "x-dev-tenant-id": tenantId
   };
