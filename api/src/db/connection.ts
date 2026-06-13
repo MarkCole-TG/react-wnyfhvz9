@@ -193,7 +193,7 @@ async function getSqlRuntimeConfig(): Promise<SqlRuntimeConfig> {
   const server = process.env.SQL_SERVER || "localhost";
   const database = process.env.SQL_DATABASE || "ScheduleDb";
   const username = process.env.SQL_USERNAME || "sa";
-  const password = process.env.SQL_PASSWORD || "Password123!";
+  const password = process.env.SQL_PASSWORD || "";
   const useAzureAuth = process.env.SQL_USE_AZURE_AUTH === "true";
   const authMode = (process.env.SQL_AUTH_MODE || "sql").toLowerCase();
   const connectTimeoutMs = getConfiguredTimeoutMs("SQL_CONNECT_TIMEOUT_MS", 60000);
