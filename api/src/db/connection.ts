@@ -10,6 +10,20 @@ interface SqlRuntimeConfig {
   config: mssql.config;
 }
 
+function getConfiguredTimeoutMs(envName: string, fallback: number): number {
+  const raw = process.env[envName];
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
 function buildAzureAuthenticationConfig() {
   const msiEndpoint = process.env.MSI_ENDPOINT;
   const msiSecret = process.env.MSI_SECRET;
@@ -70,6 +84,7 @@ function getSqlRuntimeConfig(): SqlRuntimeConfig {
   const password = process.env.SQL_PASSWORD || "Password123!";
   const useAzureAuth = process.env.SQL_USE_AZURE_AUTH === "true";
   const authMode = (process.env.SQL_AUTH_MODE || "sql").toLowerCase();
+  const connectTimeoutMs = getConfiguredTimeoutMs("SQL_CONNECT_TIMEOUT_MS", 60000);
 
   const isLocalDb = server.toLowerCase().includes("(localdb)");
   if (isLocalDb || authMode === "windows") {
@@ -82,7 +97,7 @@ function getSqlRuntimeConfig(): SqlRuntimeConfig {
         connectionString: `Driver={ODBC Driver 18 for SQL Server};Server=${server};Database=${database};Trusted_Connection=Yes;Encrypt=No;` as any,
         options: {
           trustServerCertificate: true,
-          connectTimeout: 15000,
+          connectTimeout: connectTimeoutMs,
         },
       },
     };
@@ -117,7 +132,7 @@ function getSqlRuntimeConfig(): SqlRuntimeConfig {
     options: {
       encrypt: isProduction || server.includes("database.windows.net"), // Encrypt for Azure SQL
       trustServerCertificate: true, // For local development with self-signed certs
-      connectTimeout: 15000,
+      connectTimeout: connectTimeoutMs,
     },
   };
 
@@ -150,7 +165,7 @@ function parseConnectionString(connectionString: string): mssql.config {
     options: {
       encrypt: true,
       trustServerCertificate: false,
-      connectTimeout: 15000,
+      connectTimeout: getConfiguredTimeoutMs("SQL_CONNECT_TIMEOUT_MS", 60000),
     },
   };
 }
