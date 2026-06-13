@@ -10,6 +10,27 @@ interface SqlRuntimeConfig {
   config: mssql.config;
 }
 
+function buildAzureAuthenticationConfig() {
+  const msiEndpoint = process.env.MSI_ENDPOINT;
+  const msiSecret = process.env.MSI_SECRET;
+
+  // Some hosted environments expose legacy MSI_* variables instead of IDENTITY_*.
+  if (msiEndpoint && msiSecret) {
+    return {
+      type: "azure-active-directory-msi-app-service" as any,
+      options: {
+        msiEndpoint,
+        msiSecret,
+      },
+    };
+  }
+
+  return {
+    type: "azure-active-directory-default" as any,
+    options: {},
+  };
+}
+
 export async function getConnection(): Promise<mssql.ConnectionPool> {
   if (pool && pool.connected) {
     return pool;
@@ -76,19 +97,23 @@ function getSqlRuntimeConfig(): SqlRuntimeConfig {
   }
 
   // Otherwise build config from individual parameters
+  const authentication = useAzureAuth
+    ? buildAzureAuthenticationConfig()
+    : {
+        type: "default" as any,
+        options:
+          username && password
+            ? {
+                userName: username,
+                password: password,
+              }
+            : {},
+      };
+
   const config: mssql.config = {
     server,
     database,
-    authentication: {
-      type: useAzureAuth ? "azure-active-directory-default" : "default",
-      options:
-        !useAzureAuth && username && password
-          ? {
-              userName: username,
-              password: password,
-            }
-          : {},
-    },
+    authentication,
     options: {
       encrypt: isProduction || server.includes("database.windows.net"), // Encrypt for Azure SQL
       trustServerCertificate: true, // For local development with self-signed certs

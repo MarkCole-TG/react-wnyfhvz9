@@ -13,6 +13,9 @@ interface SqlErrorDetails {
 interface ManagedIdentityDiagnostics {
   endpointConfigured: boolean;
   headerConfigured: boolean;
+  legacyEndpointConfigured: boolean;
+  legacySecretConfigured: boolean;
+  tokenSource?: "identity" | "msi";
   tokenRequestAttempted: boolean;
   tokenRequestSucceeded: boolean;
   error?: string;
@@ -65,35 +68,56 @@ function getSqlErrorDetails(error: unknown): SqlErrorDetails {
 }
 
 async function getManagedIdentityDiagnostics(): Promise<ManagedIdentityDiagnostics> {
-  const endpoint = process.env.IDENTITY_ENDPOINT;
-  const header = process.env.IDENTITY_HEADER;
+  const identityEndpoint = process.env.IDENTITY_ENDPOINT;
+  const identityHeader = process.env.IDENTITY_HEADER;
+  const msiEndpoint = process.env.MSI_ENDPOINT;
+  const msiSecret = process.env.MSI_SECRET;
 
   const diagnostics: ManagedIdentityDiagnostics = {
-    endpointConfigured: Boolean(endpoint),
-    headerConfigured: Boolean(header),
+    endpointConfigured: Boolean(identityEndpoint),
+    headerConfigured: Boolean(identityHeader),
+    legacyEndpointConfigured: Boolean(msiEndpoint),
+    legacySecretConfigured: Boolean(msiSecret),
     tokenRequestAttempted: false,
     tokenRequestSucceeded: false,
   };
 
-  if (!endpoint || !header) {
+  const canUseIdentityEndpoint = Boolean(identityEndpoint && identityHeader);
+  const canUseLegacyEndpoint = Boolean(msiEndpoint && msiSecret);
+
+  if (!canUseIdentityEndpoint && !canUseLegacyEndpoint) {
     return diagnostics;
   }
 
   diagnostics.tokenRequestAttempted = true;
 
   try {
-    const url = new URL(endpoint);
-    url.searchParams.set("api-version", "2019-08-01");
-    url.searchParams.set("resource", "https://database.windows.net/");
+    let response: Response;
 
-    const response = await fetch(url, {
-      headers: {
-        "X-IDENTITY-HEADER": header,
-      },
-    });
+    if (canUseIdentityEndpoint && identityEndpoint && identityHeader) {
+      diagnostics.tokenSource = "identity";
+      const url = new URL(identityEndpoint);
+      url.searchParams.set("api-version", "2019-08-01");
+      url.searchParams.set("resource", "https://database.windows.net/");
+      response = await fetch(url, {
+        headers: {
+          "X-IDENTITY-HEADER": identityHeader,
+        },
+      });
+    } else {
+      diagnostics.tokenSource = "msi";
+      const url = new URL(msiEndpoint as string);
+      url.searchParams.set("api-version", "2017-09-01");
+      url.searchParams.set("resource", "https://database.windows.net/");
+      response = await fetch(url, {
+        headers: {
+          Secret: msiSecret as string,
+        },
+      });
+    }
 
     if (!response.ok) {
-      diagnostics.error = `Managed identity token request failed with status ${response.status}`;
+      diagnostics.error = `Managed identity token request (${diagnostics.tokenSource ?? "unknown"}) failed with status ${response.status}`;
       return diagnostics;
     }
 
