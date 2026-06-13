@@ -8,6 +8,7 @@ import { createStaffMember, deleteStaffMember, fetchStaff, updateStaffMember } f
 import { fetchScheduleWeek, upsertScheduleEntry } from "./api/schedule";
 import { lockWeek, unlockWeek, updateUserRoles } from "./api/admin";
 import { fetchApiMessage } from "./api/message";
+import { getCurrentUser } from "./api/auth";
 
 /* -----------------------------------------
    DAYS + OPTIONS
@@ -110,6 +111,7 @@ export default function App() {
   const [signInRequired, setSignInRequired] = useState(false);
   const [apiMessage, setApiMessage] = useState("");
   const [weekRecords, setWeekRecords] = useState({});
+  const [currentUserName, setCurrentUserName] = useState("");
 
   const handleApiError = (error, fallbackMessage) => {
     if (isAuthSignInError(error)) {
@@ -141,6 +143,17 @@ export default function App() {
   useEffect(() => {
     let active = true;
 
+    async function loadCurrentUser() {
+      try {
+        const user = await getCurrentUser();
+        if (!active) return;
+        setCurrentUserName(user.isAuthenticated ? user.displayName : "");
+      } catch {
+        if (!active) return;
+        setCurrentUserName("");
+      }
+    }
+
     async function loadMessage() {
       try {
         const message = await fetchApiMessage();
@@ -152,6 +165,7 @@ export default function App() {
       }
     }
 
+    loadCurrentUser();
     loadMessage();
 
     return () => {
@@ -440,13 +454,19 @@ return (
 
       {/* HEADER */}
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-800">
-          Office Days Planner
-        </h1>
-        
-<div className="text-lg font-semibold text-gray-700 mt-1">
-  Week Commencing: {formatDate(weekInfo.start)}
-</div>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">
+            Office Days Planner
+          </h1>
+          <div className="mt-1 text-lg font-semibold text-gray-700">
+            Week Commencing: {formatDate(weekInfo.start)}
+          </div>
+          {currentUserName && (
+            <div className="mt-1 text-sm text-gray-600">
+              Signed in as <span className="font-semibold text-gray-800">{currentUserName}</span>
+            </div>
+          )}
+        </div>
 
 
         <div className="flex gap-3">
