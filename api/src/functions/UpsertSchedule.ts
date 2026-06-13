@@ -2,7 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import { authorizeRequest } from "../security/authorize";
 import { fail, ok } from "../http/response";
 import { getJsonBody, InvalidJsonBodyError, parseWeek } from "../http/params";
-import { upsertScheduleRow, SchedulePayload } from "../data/store-sql";
+import { upsertScheduleRow, SchedulePayload } from "../data/store-runtime";
 
 export async function UpsertSchedule(req: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const auth = await authorizeRequest(req, context.invocationId, ["planner", "admin"]);
