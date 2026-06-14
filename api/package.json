@@ -12,6 +12,7 @@
     "test": "tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
+    "@azure/identity": "^4.10.1",
     "@azure/functions": "^4.0.0",
     "jose": "^5.9.6",
     "mssql": "^11.0.1"
