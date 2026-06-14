@@ -56,25 +56,8 @@ export async function authorizeRequest(req: HttpRequest, correlationId: string, 
     };
   }
 
-  if (!requireRoleChecks()) {
-    return {
-      ok: true,
-      user,
-    };
-  }
-
-  const isAuthorized = user.roles.some((role) => allowedRoles.includes(role));
-  if (!isAuthorized) {
-    return {
-      ok: false,
-      status: 403,
-      body: errorBody(
-        "insufficient_role",
-        "Your role does not allow this operation.",
-        correlationId
-      ),
-    };
-  }
+  // Role checks are intentionally disabled: all authenticated active users are authorized.
+  void allowedRoles;
 
   return {
     ok: true,
@@ -84,10 +67,6 @@ export async function authorizeRequest(req: HttpRequest, correlationId: string, 
 
 function useSqlUserStore() {
   return process.env.SQL_USE_DATABASE === "true";
-}
-
-function requireRoleChecks() {
-  return process.env.AUTH_REQUIRE_ROLES === "true";
 }
 
 function useTokenRoleAuthorization() {
