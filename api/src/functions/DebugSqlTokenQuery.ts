@@ -1,10 +1,12 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { DefaultAzureCredential } from "@azure/identity";
 import mssql from "mssql";
 import { fail, ok } from "../http/response";
 
 interface ManagedIdentityTokenResult {
   token: string;
   source: string;
+  attemptedSources: string[];
 }
 
 interface DecodedTokenClaims {
@@ -57,6 +59,7 @@ async function getManagedIdentityToken(): Promise<ManagedIdentityTokenResult> {
     apiVersion: string;
     headers: Record<string, string>;
   }> = [];
+  const attemptedSources: string[] = [];
 
   if (identityEndpoint) {
     if (identityHeader) {
@@ -105,6 +108,7 @@ async function getManagedIdentityToken(): Promise<ManagedIdentityTokenResult> {
   }
 
   for (const attempt of attempts) {
+    attemptedSources.push(attempt.source);
     const url = new URL(attempt.endpoint);
     url.searchParams.set("api-version", attempt.apiVersion);
     url.searchParams.set("resource", "https://database.windows.net/");
@@ -122,11 +126,24 @@ async function getManagedIdentityToken(): Promise<ManagedIdentityTokenResult> {
       return {
         token: payload.access_token,
         source: attempt.source,
+        attemptedSources,
       };
     }
   }
 
-  throw new Error("Managed identity token request failed for all known endpoint variants.");
+  const credential = new DefaultAzureCredential();
+  attemptedSources.push("default-azure-credential");
+  const accessToken = await credential.getToken("https://database.windows.net/.default");
+
+  if (!accessToken?.token) {
+    throw new Error("Managed identity token request failed for all known endpoint variants and DefaultAzureCredential did not return a token.");
+  }
+
+  return {
+    token: accessToken.token,
+    source: "default-azure-credential",
+    attemptedSources,
+  };
 }
 
 async function runTokenSqlProbe(token: string) {
@@ -184,6 +201,7 @@ export async function DebugSqlTokenQuery(req: HttpRequest, context: InvocationCo
       steps: {
         tokenAcquired: true,
         tokenSource: tokenResult.source,
+        tokenSourceAttempts: tokenResult.attemptedSources,
         sqlConnectedWithToken: true,
         sqlQueryExecuted: true,
       },
