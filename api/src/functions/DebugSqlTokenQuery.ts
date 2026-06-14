@@ -103,10 +103,6 @@ async function getManagedIdentityToken(): Promise<ManagedIdentityTokenResult> {
     });
   }
 
-  if (attempts.length === 0) {
-    throw new Error("No managed identity endpoint variables are available in this environment.");
-  }
-
   for (const attempt of attempts) {
     attemptedSources.push(attempt.source);
     const url = new URL(attempt.endpoint);
