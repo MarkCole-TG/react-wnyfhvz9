@@ -1,7 +1,12 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { DefaultAzureCredential } from "@azure/identity";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import mssql from "mssql";
 import { fail, ok } from "../http/response";
+
+const ENDPOINT_VERSION = "debug-sql-token-query-2026-06-14-v2";
+const execFileAsync = promisify(execFile);
 
 interface ManagedIdentityTokenResult {
   token: string;
@@ -127,18 +132,58 @@ async function getManagedIdentityToken(): Promise<ManagedIdentityTokenResult> {
     }
   }
 
-  const credential = new DefaultAzureCredential();
   attemptedSources.push("default-azure-credential");
-  const accessToken = await credential.getToken("https://database.windows.net/.default");
-
-  if (!accessToken?.token) {
-    throw new Error("Managed identity token request failed for all known endpoint variants and DefaultAzureCredential did not return a token.");
+  try {
+    const credential = new DefaultAzureCredential();
+    const accessToken = await credential.getToken("https://database.windows.net/.default");
+    if (accessToken?.token) {
+      return {
+        token: accessToken.token,
+        source: "default-azure-credential",
+        attemptedSources,
+      };
+    }
+  } catch {
+    // Fall through to Azure CLI fallback for local troubleshooting.
   }
 
+  const isHosted = Boolean(process.env.WEBSITE_INSTANCE_ID);
+  if (!isHosted) {
+    attemptedSources.push("azure-cli-exec");
+    try {
+      const { stdout } = await execFileAsync("az", [
+        "account",
+        "get-access-token",
+        "--resource",
+        "https://database.windows.net/",
+        "--query",
+        "accessToken",
+        "-o",
+        "tsv",
+      ]);
+
+      const token = stdout.trim();
+      if (token) {
+        return {
+          token,
+          source: "azure-cli-exec",
+          attemptedSources,
+        };
+      }
+    } catch {
+      // Keep final error concise; attempts list will show what was tried.
+    }
+  }
+
+  throw new Error(
+    `Token acquisition failed. attemptedSources=${attemptedSources.join(",")}. Ensure managed identity is enabled in Azure, or for local runs install Azure CLI and run 'az login'.`
+  );
+}
+
+function getEndpointHelp() {
   return {
-    token: accessToken.token,
-    source: "default-azure-credential",
-    attemptedSources,
+    local: "For local runs: install Azure CLI and run az login.",
+    hosted: "For hosted runs: enable managed identity and grant Azure SQL access for that identity.",
   };
 }
 
@@ -192,6 +237,7 @@ export async function DebugSqlTokenQuery(req: HttpRequest, context: InvocationCo
 
     return ok({
       temporary: true,
+      endpointVersion: ENDPOINT_VERSION,
       message:
         "Managed identity SQL token probe endpoint. Disable with SQL_TOKEN_TEST_ENDPOINT_ENABLED=false after troubleshooting.",
       steps: {
@@ -203,6 +249,7 @@ export async function DebugSqlTokenQuery(req: HttpRequest, context: InvocationCo
       },
       tokenClaims: decodeJwtPayload(tokenResult.token),
       sqlResult,
+      help: getEndpointHelp(),
       config: {
         server: process.env.SQL_SERVER,
         database: process.env.SQL_DATABASE,
@@ -214,7 +261,7 @@ export async function DebugSqlTokenQuery(req: HttpRequest, context: InvocationCo
     return fail(
       500,
       "sql_token_probe_failed",
-      `Managed identity SQL token probe failed: ${message}`,
+      `Managed identity SQL token probe failed [${ENDPOINT_VERSION}]: ${message}`,
       context.invocationId
     );
   }
