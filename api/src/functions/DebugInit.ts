@@ -1,5 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { ensureDatabaseInitialized } from "../db/bootstrap";
+import { getSqlAuthRuntimeState } from "../db/connection";
 import { ok, fail } from "../http/response";
 
 interface SqlErrorDetails {
@@ -194,9 +195,12 @@ export async function DebugInit(req: HttpRequest, context: InvocationContext): P
     console.log("[DebugInit] Starting database initialization test...");
     await ensureDatabaseInitialized();
     console.log("[DebugInit] Database initialization test completed");
+    const sqlRuntimeAuth = getSqlAuthRuntimeState();
+
     return ok({
       message: "Database initialization successful",
       managedIdentity,
+      sqlRuntimeAuth,
       sqlConfig: {
         useDatabase: process.env.SQL_USE_DATABASE,
         useAzureAuth: process.env.SQL_USE_AZURE_AUTH,
@@ -224,10 +228,12 @@ export async function DebugInit(req: HttpRequest, context: InvocationContext): P
     }
 
     const sqlError = getSqlErrorDetails(error);
+    const sqlRuntimeAuth = getSqlAuthRuntimeState();
     
     const diagnosticSummary = JSON.stringify({
       managedIdentity,
       sqlError,
+      sqlRuntimeAuth,
       sqlConfig: {
         useDatabase: process.env.SQL_USE_DATABASE,
         useAzureAuth: process.env.SQL_USE_AZURE_AUTH,
