@@ -4,10 +4,32 @@ type SqlModule = typeof mssql;
 
 let activeSqlModule: SqlModule = mssql;
 let pool: mssql.ConnectionPool | null = null;
+let lastSqlAuthRuntimeState: SqlAuthRuntimeState | null = null;
 
 interface SqlRuntimeConfig {
   module: SqlModule;
   config: mssql.config;
+}
+
+export interface SqlAuthRuntimeState {
+  server: string;
+  database: string;
+  hasConnectionString: boolean;
+  useAzureAuth: boolean;
+  authMode: string;
+  resolvedAuthType: string;
+  usingSqlAuth: boolean;
+  usingAzureAuth: boolean;
+  module: "mssql" | "mssql/msnodesqlv8";
+  hasUsername: boolean;
+}
+
+function setSqlAuthRuntimeState(state: SqlAuthRuntimeState): void {
+  lastSqlAuthRuntimeState = state;
+}
+
+export function getSqlAuthRuntimeState(): SqlAuthRuntimeState | null {
+  return lastSqlAuthRuntimeState;
 }
 
 interface TokenAcquisitionAttempt {
@@ -203,6 +225,19 @@ async function getSqlRuntimeConfig(): Promise<SqlRuntimeConfig> {
     // LocalDB requires Windows auth and msnodesqlv8 driver.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const mssqlNative = require("mssql/msnodesqlv8") as SqlModule;
+    setSqlAuthRuntimeState({
+      server,
+      database,
+      hasConnectionString: Boolean(connectionString),
+      useAzureAuth,
+      authMode,
+      resolvedAuthType: "windows-trusted-connection",
+      usingSqlAuth: false,
+      usingAzureAuth: false,
+      module: "mssql/msnodesqlv8",
+      hasUsername: false,
+    });
+
     return {
       module: mssqlNative as unknown as SqlModule,
       config: {
@@ -217,9 +252,23 @@ async function getSqlRuntimeConfig(): Promise<SqlRuntimeConfig> {
 
   // If connection string provided, parse and use it (for Azure SQL)
   if (connectionString) {
+    const parsedConfig = parseConnectionString(connectionString);
+    setSqlAuthRuntimeState({
+      server: String(parsedConfig.server || server),
+      database: String(parsedConfig.database || database),
+      hasConnectionString: true,
+      useAzureAuth,
+      authMode,
+      resolvedAuthType: String(parsedConfig.authentication?.type || "default"),
+      usingSqlAuth: true,
+      usingAzureAuth: false,
+      module: "mssql",
+      hasUsername: Boolean(parsedConfig.authentication?.options?.userName),
+    });
+
     return {
       module: mssql,
-      config: parseConnectionString(connectionString),
+      config: parsedConfig,
     };
   }
 
@@ -247,6 +296,20 @@ async function getSqlRuntimeConfig(): Promise<SqlRuntimeConfig> {
       connectTimeout: connectTimeoutMs,
     },
   };
+
+  const resolvedAuthType = String(authentication.type || "unknown");
+  setSqlAuthRuntimeState({
+    server,
+    database,
+    hasConnectionString: false,
+    useAzureAuth,
+    authMode,
+    resolvedAuthType,
+    usingSqlAuth: resolvedAuthType === "default",
+    usingAzureAuth: resolvedAuthType.startsWith("azure-active-directory"),
+    module: "mssql",
+    hasUsername: Boolean(username),
+  });
 
   return {
     module: mssql,
